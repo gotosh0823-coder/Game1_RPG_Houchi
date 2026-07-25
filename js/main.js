@@ -131,6 +131,23 @@ document.getElementById('btn-reset').addEventListener('click', () => {
   }
 });
 
+// --- デバッグ用の倍速（左上） ---
+//
+// 放置ゲームは確認に実時間がかかるので、10倍速で回せるようにしておく。
+// セーブには残さない（リロードすると必ず等速に戻る）。
+
+const SPEEDS = [1, 10];
+let speedIndex = 0;
+let speed = SPEEDS[speedIndex];
+
+const speedBtn = document.getElementById('speed-toggle');
+speedBtn.addEventListener('click', () => {
+  speedIndex = (speedIndex + 1) % SPEEDS.length;
+  speed = SPEEDS[speedIndex];
+  speedBtn.textContent = `×${speed}`;
+  speedBtn.classList.toggle('fast', speed > 1);
+});
+
 // --- ゲームループ ---
 //
 // 実時間ベースで進める。タブが非アクティブでも復帰時にまとめて追いつく。
@@ -142,16 +159,19 @@ function frame(now) {
   let dt = (now - last) / 1000;
   last = now;
   // 復帰時に一気に進みすぎないよう上限を掛ける（オフライン報酬とは別枠）
-  dt = Math.min(dt, 1.0);
+  dt = Math.min(dt, 1.0) * speed;
   acc += dt;
 
+  // 1フレームで進めるティック数の上限。倍速ぶんは余裕を持たせる
+  const maxTicks = 20 * speed;
   let guard = 0;
-  while (acc >= TICK && guard < 60) {
+  while (acc >= TICK && guard < maxTicks) {
     acc -= TICK;
     guard++;
     if (state.autoMode) battle.autoUse();
     battle.tick();
   }
+  if (acc > TICK * maxTicks) acc = 0;   // 追いつけないぶんは捨てる
 
   renderer.update(battle, state);
   requestAnimationFrame(frame);

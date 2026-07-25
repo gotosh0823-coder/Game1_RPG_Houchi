@@ -13,6 +13,9 @@ export function shortNum(n) {
   return (v < 10 ? v.toFixed(1) : Math.floor(v)) + units[u];
 }
 
+// 同時に表示するトーストの上限
+const MAX_TOASTS = 4;
+
 function barClass(ratio) {
   if (ratio <= 0.25) return 'bar low';
   if (ratio <= 0.55) return 'bar mid';
@@ -164,6 +167,11 @@ export class Renderer {
   }
 
   toast(text) {
+    // レベルアップが連続した時や倍速中は大量に飛んでくるので、
+    // 同時に出す数を絞る（古いものから消す）
+    while (this.toasts.children.length >= MAX_TOASTS) {
+      this.toasts.firstChild.remove();
+    }
     const t = document.createElement('div');
     t.className = 'toast';
     t.textContent = text;

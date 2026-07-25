@@ -44,9 +44,9 @@ export function expPerBattle(stage) {
 export const METAL = {
   icon: '🩶',
   name: 'メタルスライム',
-  rate: 0.04,        // 通常戦闘に出現する確率
-  hp: 50,            // ステージに依らず固定（物理1ダメージなので実質「必要な手数」）
-  escapeIn: 15,      // 秒。これを過ぎると逃げる
+  rate: 0.01,        // 通常戦闘に出現する確率
+  hp: 10,            // ステージに依らず固定（物理1ダメージなので実質「必要な手数」）
+  escapeIn: 10,      // 秒。これを過ぎると逃げる
   expMultiplier: 25, // 1戦闘ぶんのEXPに対する倍率
   goldMultiplier: 3,
 };
