@@ -89,6 +89,14 @@ html, body {
 .enemy.is-dead { opacity: 0; pointer-events: none; }
 .enemy.is-boss { background: rgba(194, 80, 63, .12); }
 
+/* レア枠：メタルスライム */
+.enemy.is-metal {
+  background: rgba(190, 200, 220, .10);
+  box-shadow: 0 0 0 1px rgba(190, 200, 220, .35) inset;
+}
+.enemy.is-metal .name { color: #cfd6e4; font-weight: 700; }
+.enemy.is-metal .bar > i { background: #aab3c4; }
+
 .enemy .sprite { font-size: 26px; line-height: 1; flex: 0 0 auto; }
 .enemy .info { flex: 1 1 auto; min-width: 0; }
 .enemy .name {
@@ -164,6 +172,7 @@ html, body {
 .pop.heal { color: var(--hp); }
 .pop.taken { color: #f08a7a; }
 .pop.block { color: var(--accent); }
+.pop.immune { color: #9aa3b5; }
 
 @keyframes pop {
   0%   { transform: translate(-50%, 4px);   opacity: 0; }

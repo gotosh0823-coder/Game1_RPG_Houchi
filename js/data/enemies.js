@@ -35,6 +35,46 @@ export function expPerBattle(stage) {
   return 9 * Math.pow(1.18, stage - 1);
 }
 
+// --- レア枠：メタルスライム ---
+//
+// 魔法は一切通らず、物理は当たっても1ダメージ固定。
+// つまり「攻撃力」ではなく「手数」だけが意味を持つ敵になる。
+// 一定時間で逃げるので、手数の足りない編成は取り逃がす。
+
+export const METAL = {
+  icon: '🩶',
+  name: 'メタルスライム',
+  rate: 0.04,        // 通常戦闘に出現する確率
+  hp: 50,            // ステージに依らず固定（物理1ダメージなので実質「必要な手数」）
+  escapeIn: 15,      // 秒。これを過ぎると逃げる
+  expMultiplier: 25, // 1戦闘ぶんのEXPに対する倍率
+  goldMultiplier: 3,
+};
+
+function makeMetalSlime() {
+  return {
+    id: 'metal',
+    isBoss: false,
+    isMetal: true,
+    magicImmune: true,   // 魔法を一切受け付けない
+    flatDamage: 1,       // 物理は必ず1ダメージ
+    icon: METAL.icon,
+    name: METAL.name,
+    maxHp: METAL.hp,
+    hp: METAL.hp,
+    atk: 0,              // 攻撃してこない
+    def: 0,
+    mdef: 0,
+    agi: 0,
+    speed: 0,            // 行動しない
+    gauge: 0,
+    aoeTimer: Infinity,
+    escapeIn: METAL.escapeIn,
+    debuff: null,
+    alive: true,
+  };
+}
+
 export const BATTLES_PER_STAGE = 10;
 export const BOSS_HP_MULTIPLIER = 15;
 export const BOSS_AOE_INTERVAL = 20;   // 秒
@@ -51,7 +91,10 @@ export function rollEnemyCount(stage) {
 
 export function makeEnemies(stage, battleIndex) {
   const isBoss = battleIndex === BATTLES_PER_STAGE - 1;
-  const count = isBoss ? 1 : rollEnemyCount(stage);
+  // ボス戦にはメタルスライムは出さない
+  const withMetal = !isBoss && Math.random() < METAL.rate;
+  // 画面に並ぶのは最大5体なので、混ざる時は通常敵を4体までにする
+  const count = isBoss ? 1 : Math.min(rollEnemyCount(stage), withMetal ? 4 : 5);
   const total = totalHp(stage) * (isBoss ? BOSS_HP_MULTIPLIER : 1);
   const hpEach = total / count;
   const pool = Math.floor((stage - 1) / 3);
@@ -78,5 +121,6 @@ export function makeEnemies(stage, battleIndex) {
       alive: true,
     });
   }
+  if (withMetal) list.push(makeMetalSlime());
   return list;
 }

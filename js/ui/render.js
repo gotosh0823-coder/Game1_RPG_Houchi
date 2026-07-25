@@ -44,7 +44,9 @@ export class Renderer {
     this.enemyEls.clear();
     for (const e of enemies) {
       const el = document.createElement('div');
-      el.className = 'enemy' + (e.isBoss ? ' is-boss' : '');
+      el.className = 'enemy'
+        + (e.isBoss ? ' is-boss' : '')
+        + (e.isMetal ? ' is-metal' : '');
       el.innerHTML = `
         <div class="sprite">${e.icon}</div>
         <div class="info">

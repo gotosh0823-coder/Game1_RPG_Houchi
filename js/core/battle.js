@@ -7,7 +7,7 @@ import { JOBS, PASSIVE } from '../data/jobs.js';
 import { calcStats, expToNext, gearMultiplier, weaponDamage } from './stats.js';
 import {
   makeEnemies, BATTLES_PER_STAGE, BOSS_AOE_INTERVAL, BOSS_AOE_MULTIPLIER,
-  goldPerBattle, expPerBattle, PROOF_DROP_STAGE, PROOF_DROP_RATE,
+  goldPerBattle, expPerBattle, PROOF_DROP_STAGE, PROOF_DROP_RATE, METAL,
 } from '../data/enemies.js';
 
 export const TICK = 0.1;              // 秒
@@ -143,6 +143,16 @@ export class Battle {
     // 敵の行動
     for (const e of this.enemies) {
       if (!e.alive) continue;
+      // メタルスライムは一定時間で逃げる
+      if (e.isMetal) {
+        e.escapeIn -= dt;
+        if (e.escapeIn <= 0) {
+          e.alive = false;
+          e.escaped = true;
+          this.emit('escape', { target: e });
+        }
+        continue;   // 行動はしない
+      }
       if (e.isBoss) {
         e.aoeTimer -= dt;
         if (e.aoeTimer <= 0) {
@@ -202,10 +212,12 @@ export class Battle {
     }
 
     if (kind === 'magic') {
+      const target = this.lowestEnemy();
+      if (!target) return;
+      // 魔法が通らない相手（メタルスライム）には、撃たずに杖で殴る
+      if (target.magicImmune) { this.physical(a); return; }
       if (a.mp >= FIRE_MP) {
         a.mp -= FIRE_MP;
-        const target = this.lowestEnemy();
-        if (!target) return;
         const dmg = this.magicPower(a) * 100 / (100 + target.mdef);
         this.damageEnemy(a, target, dmg, 'magic');
         return;
@@ -263,13 +275,26 @@ export class Battle {
   }
 
   damageEnemy(source, target, dmg, kind) {
-    dmg = Math.max(1, Math.floor(dmg));
+    // 倒した相手に追撃が入ることがある（ウェポンスキルは通常攻撃と同じ
+    // swing の中で撃たれるため）。撃破処理が二重に走るので弾く。
+    if (!target.alive) return;
+
+    // メタルスライム：魔法は一切通らない
+    if (target.magicImmune && kind === 'magic') {
+      this.emit('immune', { target });
+      return;
+    }
+    // メタルスライム：物理は当たっても1ダメージ固定
+    dmg = target.flatDamage != null
+      ? target.flatDamage
+      : Math.max(1, Math.floor(dmg));
     target.hp -= dmg;
     source.hate += dmg;
     this.emit('damage', { side: 'enemy', target, dmg, kind });
     if (target.hp <= 0) {
       target.hp = 0;
       target.alive = false;
+      if (target.isMetal) this.grantMetalReward(target);
       this.emit('kill', { target });
     }
   }
@@ -406,16 +431,32 @@ export class Battle {
 
   // --- 戦闘結果 ---
 
+  // メタルスライムを倒した時の報酬（戦闘終了を待たずその場で入る）
+  grantMetalReward() {
+    const stage = this.save.stage;
+    const gold = goldPerBattle(stage) * METAL.goldMultiplier * (1 + this.treasureBonus() / 100);
+    this.save.gold += gold;
+
+    const exp = expPerBattle(stage) * METAL.expMultiplier;
+    for (const id of [...new Set(this.save.party)]) this.gainExp(id, exp);
+
+    this.emit('metal', { gold, exp });
+  }
+
+  treasureBonus() {
+    let bonus = 0;
+    for (const a of this.allies) {
+      if (a.job.passive.id === 'treasure_hunter') bonus += PASSIVE.treasureHunter(a.level);
+    }
+    return bonus;
+  }
+
   winBattle() {
     const stage = this.save.stage;
     const isBoss = this.isBossBattle;
 
     // ゴールド（トレジャーハンターは編成に入っている枠ぶん加算）
-    let thBonus = 0;
-    for (const a of this.allies) {
-      if (a.job.passive.id === 'treasure_hunter') thBonus += PASSIVE.treasureHunter(a.level);
-    }
-    const gold = goldPerBattle(stage) * (isBoss ? 5 : 1) * (1 + thBonus / 100);
+    const gold = goldPerBattle(stage) * (isBoss ? 5 : 1) * (1 + this.treasureBonus() / 100);
     this.save.gold += gold;
 
     // EXP（ジョブ単位で1回だけ。重複編成でも倍にはならない）

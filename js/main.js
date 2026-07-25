@@ -7,6 +7,7 @@
 import { Battle, TICK } from './core/battle.js';
 import { load, save, applyOffline, wipeSave, canLimitBreak, doLimitBreak } from './core/save.js';
 import { JOBS, proofName } from './data/jobs.js';
+import { METAL } from './data/enemies.js';
 import { Renderer, shortNum } from './ui/render.js';
 
 const state = load();
@@ -38,6 +39,18 @@ function onEvent(type, payload) {
       }
       break;
     }
+
+    case 'immune':
+      renderer.popEnemy(payload.target, '無効', 'immune');
+      break;
+
+    case 'metal':
+      renderer.toast(`メタルスライム撃破！ EXP +${shortNum(payload.exp)}`);
+      break;
+
+    case 'escape':
+      renderer.toast('メタルスライムは逃げ出した');
+      break;
 
     case 'heal':
       if (!payload.full) renderer.popAlly(payload.target.slot, `+${shortNum(payload.amount)}`, 'heal');
@@ -189,6 +202,7 @@ window.game = {
     return ok;
   },
   // バランス確認用
+  METAL,          // game.METAL.rate = 1 でメタルスライムを毎回出せる
   jump: (stage) => {
     state.stage = stage;
     state.maxStage = Math.max(state.maxStage, stage);
