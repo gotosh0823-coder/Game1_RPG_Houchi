@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#12131a">
+<title>放置RPG（仮）</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- 進捗 -->
+  <header id="hud-top">
+    <span id="stage-label">ステージ 1</span>
+    <span id="battle-label">戦闘 1/10</span>
+  </header>
+
+  <!-- 戦闘画面：左に敵（最大5体）、右に味方4人 -->
+  <main id="screen-battle" class="screen is-active">
+    <div id="field">
+      <div id="enemies" class="column"></div>
+      <div id="allies" class="column"></div>
+    </div>
+  </main>
+
+  <!-- 以下は仮画面（画面が切り替わることだけ確認できる状態） -->
+  <main id="screen-party" class="screen placeholder">
+    <div class="placeholder-inner">
+      <div class="placeholder-icon">🧭</div>
+      <h2>編成</h2>
+      <p>仮画面</p>
+      <p class="note">4枠 / 解放済みジョブから選択 / 同一ジョブの重複可</p>
+    </div>
+  </main>
+
+  <main id="screen-equip" class="screen placeholder">
+    <div class="placeholder-inner">
+      <div class="placeholder-icon">🛡</div>
+      <h2>装備</h2>
+      <p>仮画面</p>
+      <p class="note">武器 / 胴 / 装飾の3スロット、ジョブ制限のみ</p>
+    </div>
+  </main>
+
+  <main id="screen-shop" class="screen placeholder">
+    <div class="placeholder-inner">
+      <div class="placeholder-icon">💰</div>
+      <h2>店</h2>
+      <p>仮画面</p>
+      <p class="note">10ステージごとに新ティア解放、+0〜+10の強化</p>
+    </div>
+  </main>
+
+  <main id="screen-settings" class="screen placeholder">
+    <div class="placeholder-inner">
+      <div class="placeholder-icon">⚙️</div>
+      <h2>設定</h2>
+      <p>仮画面</p>
+      <button id="btn-reset" class="danger">セーブデータを消して最初から</button>
+    </div>
+  </main>
+
+  <!-- 唯一の操作：固有アビリティ4ボタン -->
+  <div id="ability-bar"></div>
+
+  <!-- 下部HUD -->
+  <footer id="hud-bottom">
+    <div id="gold">💰 0</div>
+    <nav id="nav">
+      <button data-screen="battle" class="is-active">戦闘</button>
+      <button data-screen="party">編成</button>
+      <button data-screen="equip">装備</button>
+      <button data-screen="shop">店</button>
+      <button data-screen="settings">設定</button>
+    </nav>
+  </footer>
+
+</div>
+
+<!-- 留守中の成果 -->
+<div id="offline-modal" class="modal hidden">
+  <div class="modal-box">
+    <h2>留守中の成果</h2>
+    <p id="offline-text"></p>
+    <button id="offline-close">受け取る</button>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

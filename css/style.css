@@ -1,0 +1,363 @@
+/* 放置RPG（仮）— FFRK準拠のレイアウト
+   左に敵（最大5体）、右に味方4人。スマホ縦持ちを基準にする。 */
+
+:root {
+  --bg: #12131a;
+  --panel: #1c1e29;
+  --panel-2: #252838;
+  --line: #333749;
+  --text: #e8e6f0;
+  --dim: #8b8ea3;
+  --hp: #4cc46a;
+  --hp-mid: #d7b23c;
+  --hp-low: #d0463c;
+  --enemy-hp: #c2503f;
+  --accent: #6c7cf0;
+  --gold: #e8c25a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Hiragino Kaku Gothic ProN", "Noto Sans JP", system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--bg);
+}
+
+/* ---------- 進捗 ---------- */
+
+#hud-top {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: .04em;
+}
+#battle-label { color: var(--dim); font-weight: 500; }
+
+/* ---------- 画面切り替え ---------- */
+
+.screen { display: none; flex: 1 1 auto; min-height: 0; overflow: hidden; }
+.screen.is-active { display: flex; }
+
+/* ---------- 戦闘画面 ---------- */
+
+#field {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 10px 8px;
+  gap: 6px;
+}
+
+.column {
+  flex: 1 1 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* 敵：左側 */
+.enemy {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .025);
+  position: relative;
+  transition: opacity .25s;
+}
+.enemy.is-dead { opacity: 0; pointer-events: none; }
+.enemy.is-boss { background: rgba(194, 80, 63, .12); }
+
+.enemy .sprite { font-size: 26px; line-height: 1; flex: 0 0 auto; }
+.enemy .info { flex: 1 1 auto; min-width: 0; }
+.enemy .name {
+  font-size: 10px; color: var(--dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  margin-bottom: 3px;
+}
+.enemy.is-boss .name { color: #e08a7a; font-weight: 700; }
+
+/* 味方：右側 */
+.ally {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: var(--panel);
+  border-left: 3px solid var(--job-color, var(--line));
+  position: relative;
+  transition: opacity .25s;
+}
+.ally.is-down { opacity: .35; }
+
+.ally .head {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ally .sprite { font-size: 16px; line-height: 1; }
+.ally .name { font-size: 12px; font-weight: 600; }
+.ally .lv { font-size: 10px; color: var(--dim); margin-left: auto; }
+.ally .lb { color: var(--gold); }
+
+/* HPバー（数値は出さない） */
+.bar {
+  height: 7px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, .45);
+  overflow: hidden;
+}
+.bar > i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 4px;
+  background: var(--hp);
+  transition: width .12s linear, background-color .2s;
+}
+.enemy .bar { height: 6px; }
+.enemy .bar > i { background: var(--enemy-hp); }
+.bar.mid > i { background: var(--hp-mid); }
+.bar.low > i { background: var(--hp-low); }
+
+/* 無敵（絶対回避） */
+.ally.is-invuln { box-shadow: 0 0 0 2px var(--accent) inset; }
+
+/* ダメージ表示 */
+.pop {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  margin-left: var(--pop-x, 0px);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+  animation: pop .7s ease-out forwards;
+  text-shadow: 0 1px 3px #000, 0 0 6px #000;
+}
+.pop.magic { color: #a98cf0; }
+.pop.ws { color: var(--gold); }
+.pop.heal { color: var(--hp); }
+.pop.taken { color: #f08a7a; }
+.pop.block { color: var(--accent); }
+
+@keyframes pop {
+  0%   { transform: translate(-50%, 4px);   opacity: 0; }
+  15%  { transform: translate(-50%, 0);     opacity: 1; }
+  100% { transform: translate(-50%, -26px); opacity: 0; }
+}
+
+/* ---------- アビリティバー（唯一の操作） ---------- */
+
+#ability-bar {
+  flex: 0 0 auto;
+  display: none;
+  gap: 5px;
+  padding: 8px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+}
+#ability-bar.is-visible { display: flex; }
+
+.ab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.ab .ab-name {
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.ab .ab-state { font-size: 10px; color: var(--dim); }
+
+.ab.ready {
+  border-color: var(--job-color, var(--accent));
+  box-shadow: 0 0 8px -2px var(--job-color, var(--accent));
+}
+.ab.ready .ab-state { color: var(--job-color, var(--accent)); font-weight: 700; }
+.ab.cooling { opacity: .55; }
+.ab.dead { opacity: .25; }
+.ab:active { transform: translateY(1px); }
+
+/* リキャストの進行を背景で見せる */
+.ab .fill {
+  position: absolute;
+  left: 0; bottom: 0;
+  height: 2px;
+  background: var(--job-color, var(--accent));
+  transition: width .12s linear;
+}
+
+/* ---------- 下部HUD ---------- */
+
+#hud-bottom {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+#gold {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gold);
+  border-bottom: 1px solid var(--line);
+}
+
+#auto-toggle {
+  margin-left: auto;
+  padding: 3px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+#auto-toggle.on { color: var(--accent); border-color: var(--accent); }
+
+#nav { display: flex; }
+#nav button {
+  flex: 1 1 0;
+  padding: 10px 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+#nav button.is-active { color: var(--text); box-shadow: inset 0 2px 0 var(--accent); }
+
+/* ---------- 仮画面 ---------- */
+
+.placeholder { align-items: center; justify-content: center; }
+.placeholder-inner { text-align: center; padding: 24px; }
+.placeholder-icon { font-size: 44px; margin-bottom: 12px; }
+.placeholder h2 { font-size: 20px; margin-bottom: 6px; }
+.placeholder p { color: var(--dim); font-size: 13px; }
+.placeholder .note {
+  margin-top: 14px;
+  font-size: 11px;
+  color: #6a6d80;
+  line-height: 1.7;
+}
+.placeholder button.danger {
+  margin-top: 22px;
+  padding: 8px 16px;
+  border: 1px solid #6b3535;
+  border-radius: 8px;
+  background: #2a1c1c;
+  color: #e0968c;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+/* ---------- モーダル ---------- */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, .7);
+  z-index: 20;
+  padding: 24px;
+}
+.modal.hidden { display: none; }
+.modal-box {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  max-width: 320px;
+  width: 100%;
+  text-align: center;
+}
+.modal-box h2 { font-size: 16px; margin-bottom: 10px; }
+.modal-box p { font-size: 13px; color: var(--dim); line-height: 1.9; white-space: pre-line; }
+.modal-box button {
+  margin-top: 16px;
+  padding: 8px 24px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* トースト（レベルアップ・証ドロップなど） */
+#toasts {
+  position: fixed;
+  left: 50%;
+  top: 52px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 15;
+}
+.toast {
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(28, 30, 41, .95);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  animation: toast 2.2s ease-out forwards;
+}
+@keyframes toast {
+  0%   { opacity: 0; transform: translateY(-6px); }
+  12%  { opacity: 1; transform: translateY(0); }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
