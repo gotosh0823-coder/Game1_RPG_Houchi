@@ -9,6 +9,7 @@ import {
   makeEnemies, BATTLES_PER_STAGE, BOSS_AOE_INTERVAL, BOSS_AOE_MULTIPLIER,
   goldPerBattle, expPerBattle, PROOF_DROP_STAGE, PROOF_DROP_RATE, METAL,
 } from '../data/enemies.js';
+import { ALEX_PER_BOSS } from './save.js';
 
 export const TICK = 0.1;              // 秒
 const BASE_MP_REGEN = 1.0;            // 全員共通のMP自然回復(/秒)
@@ -536,7 +537,11 @@ export class Battle {
     const gold = goldPerBattle(stage) * (isBoss ? 5 : 1) * (1 + this.treasureBonus() / 100);
     this.save.gold += gold;
     this.save.stats.totalGold += gold;
-    if (isBoss) this.save.stats.bossKills++;
+    if (isBoss) {
+      this.save.stats.bossKills++;
+      // A：ボス撃破ごとにアレキサンドライト
+      this.save.alexandrite = (this.save.alexandrite ?? 0) + ALEX_PER_BOSS;
+    }
 
     // EXP（ジョブ単位で1回だけ。重複編成でも倍にはならない）
     const jobIds = [...new Set(this.save.party)];

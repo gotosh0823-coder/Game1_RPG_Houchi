@@ -18,6 +18,22 @@ export const OFFLINE_RATE = 0.5;         // 効率50%
 export const OFFLINE_CAP_HOURS = 12;     // 上限12時間
 export const ASSUMED_STAGE_SECONDS = 90; // 1ステージの想定所要時間
 
+// --- アレキサンドライトの供給（A / B / C） ---
+//
+// 実績だけだと総量12,990個で1か月ぶんしかなく、しかも使い切りになる。
+// 繰り返し手に入る供給源を3つ用意して、1日およそ420個に着地させている。
+//   A ボス撃破ごと     5個  … 3時間プレイで約190個
+//   B ログインボーナス 100個 … 1日1回
+//   C オフライン報酬   100個 … 12時間で上限
+// 定常状態で 1日あたり 390個前後。UR装備1個ぶん（約840個）が2日強で貯まる。
+//
+// 実績ぶんは別枠で、最初の数日は上記に大きく上乗せされる（総量12,990個の使い切り）。
+// ボスの間隔はステージ所要時間で決まるので、装備システムを作り替えたら測り直すこと。
+
+export const ALEX_PER_BOSS = 5;          // A
+export const ALEX_DAILY_LOGIN = 100;     // B
+export const ALEX_OFFLINE_CAP = 100;     // C（12時間ぶんの上限）
+
 export function newSave() {
   const jobs = {};
   for (const id of JOB_IDS) {
@@ -30,6 +46,7 @@ export function newSave() {
     gold: 0,
     // ガチャ通貨。デバッグ環境なので初期課金ぶんとして200個持たせてある
     alexandrite: 200,
+    lastLoginDay: '',           // ログインボーナス用（YYYY-MM-DD）
     autoMode: true,
     stats: newStats(),          // 実績の計測値
     achievements: {},           // 取得済みの実績（キー → 1）
@@ -108,8 +125,12 @@ export function applyOffline(state) {
   const gold = (perStageGold / ASSUMED_STAGE_SECONDS) * capped * OFFLINE_RATE;
   const expGain = (perStageExp / ASSUMED_STAGE_SECONDS) * capped * OFFLINE_RATE;
 
+  // C：オフライン中もアレキサンドライトが貯まる（12時間で上限）
+  const alex = Math.floor(ALEX_OFFLINE_CAP * (capped / (OFFLINE_CAP_HOURS * 3600)));
+
   state.gold += gold;
   state.stats.totalGold += gold;
+  state.alexandrite = (state.alexandrite ?? 0) + alex;
 
   const levelups = [];
   for (const id of [...new Set(state.party)]) {
@@ -125,7 +146,20 @@ export function applyOffline(state) {
     if (jd.level > before) levelups.push({ jobId: id, from: before, to: jd.level });
   }
 
-  return { seconds: capped, gold, exp: expGain, levelups, capped: elapsed > capped };
+  return { seconds: capped, gold, exp: expGain, alex, levelups, capped: elapsed > capped };
+}
+
+/**
+ * B：ログインボーナス。
+ * 日付が変わっていれば1日1回だけ配る。受け取り操作は無く、起動時に自動で入る。
+ * @returns 配った量（0なら今日はもう受け取り済み）
+ */
+export function claimDailyLogin(state) {
+  const today = new Date().toLocaleDateString('sv-SE');   // YYYY-MM-DD
+  if (state.lastLoginDay === today) return 0;
+  state.lastLoginDay = today;
+  state.alexandrite = (state.alexandrite ?? 0) + ALEX_DAILY_LOGIN;
+  return ALEX_DAILY_LOGIN;
 }
 
 // --- 限界突破 ---

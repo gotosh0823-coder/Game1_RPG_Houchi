@@ -5,7 +5,7 @@
 //   - 編成 / 装備 / 店 / 設定 は仮画面（切り替わって画面名が出るだけ）
 
 import { Battle, TICK } from './core/battle.js';
-import { load, save, applyOffline, wipeSave, canLimitBreak, doLimitBreak } from './core/save.js';
+import { load, save, applyOffline, wipeSave, canLimitBreak, doLimitBreak, claimDailyLogin } from './core/save.js';
 import { JOBS, proofName } from './data/jobs.js';
 import { METAL } from './data/enemies.js';
 import { claim, progress } from './core/achievements.js';
@@ -13,6 +13,7 @@ import { Renderer, shortNum } from './ui/render.js';
 
 const state = load();
 const offline = applyOffline(state);
+const dailyAlex = claimDailyLogin(state);   // B：ログインボーナス（自動）
 
 const renderer = new Renderer();
 let battle = null;
@@ -211,6 +212,11 @@ alexBtn.addEventListener('click', () => {
 });
 renderAlexandrite();
 
+// B：ログインボーナスの通知（受け取り操作は無い）
+if (dailyAlex > 0) {
+  setTimeout(() => renderer.toast(`ログインボーナス アレキサンドライト +${dailyAlex}`), 400);
+}
+
 // --- ゲームループ ---
 //
 // 実時間ベースで進める。タブが非アクティブでも復帰時にまとめて追いつく。
@@ -238,7 +244,7 @@ function frame(now) {
 
   renderer.update(battle, state);
   achTimer += dt;
-  if (achTimer >= 1) { achTimer = 0; checkAchievements(); }
+  if (achTimer >= 1) { achTimer = 0; checkAchievements(); renderAlexandrite(); }
   requestAnimationFrame(frame);
 }
 let achTimer = 0;
@@ -264,6 +270,7 @@ if (offline) {
     `留守：${h > 0 ? `${h}時間` : ''}${m}分${offline.capped ? '（上限12時間まで）' : ''}`,
     `ゴールド +${shortNum(offline.gold)}`,
   ];
+  if (offline.alex > 0) lines.push(`アレキサンドライト +${offline.alex}`);
   for (const lu of offline.levelups) {
     lines.push(`${JOBS[lu.jobId].name} Lv${lu.from} → Lv${lu.to}`);
   }
