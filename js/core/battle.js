@@ -3,7 +3,7 @@
 // 100msティックでリアルタイムに進行する。ターン制ではない。
 // 仕様 §6 準拠。
 
-import { JOBS, PASSIVE } from '../data/jobs.js';
+import { JOBS, PASSIVE, DEFAULT_HATE_RATE } from '../data/jobs.js';
 import { calcStats, expToNext, gearMultiplier, weaponDamage } from './stats.js';
 import {
   makeEnemies, BATTLES_PER_STAGE, BOSS_AOE_INTERVAL, BOSS_AOE_MULTIPLIER,
@@ -360,10 +360,12 @@ export class Battle {
     // 全員に最低保証を配れない人数のときは均等割り
     if (MIN_HATE_SHARE * n >= 100) return list.map(() => 100 / n);
 
-    const total = list.reduce((sum, a) => sum + Math.max(0, a.hate), 0);
+    // ジョブごとのヘイト倍率を掛けたうえで比率を出す
+    const weights = list.map(a => Math.max(0, a.hate) * this.hateRate(a));
+    const total = weights.reduce((sum, w) => sum + w, 0);
     if (total <= 0) return list.map(() => 100 / n);
 
-    const shares = list.map(a => Math.max(0, a.hate) / total * 100);
+    const shares = weights.map(w => w / total * 100);
 
     // 最低保証を下回るぶんを、上回っている側から比例して分けてもらう
     const deficit = shares.reduce((sum, w) => sum + Math.max(0, MIN_HATE_SHARE - w), 0);
@@ -377,6 +379,10 @@ export class Battle {
         ? MIN_HATE_SHARE
         : w - deficit * (w - MIN_HATE_SHARE) / surplus
     ));
+  }
+
+  hateRate(a) {
+    return a.job.hateRate ?? DEFAULT_HATE_RATE;
   }
 
   /** ヘイトの比率で狙う相手を抽選する */

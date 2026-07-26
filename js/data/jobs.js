@@ -27,6 +27,7 @@ export const JOBS = {
     color: '#d2603f',
     grades: { hp: 'A', mp: 'F', str: 'A', dex: 'B', vit: 'A', agi: 'C', int: 'E', mnd: 'D', chr: 'C' },
     speed: 1.00,          // 1秒あたりの行動回数（基準値）
+    hateRate: 1.5,        // ヘイト倍率（狙われやすさ）。盾役として前に立たせる
     autoAction: 'physical',
     ability: {
       id: 'mighty_strike',
@@ -51,6 +52,7 @@ export const JOBS = {
     color: '#c9973a',
     grades: { hp: 'A+', mp: 'F', str: 'A', dex: 'B', vit: 'A+', agi: 'B', int: 'F', mnd: 'C', chr: 'C' },
     speed: 1.30,
+    hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',
     ability: {
       id: 'hundred_fists',
@@ -75,6 +77,7 @@ export const JOBS = {
     color: '#d8d2c0',
     grades: { hp: 'D', mp: 'A', str: 'D', dex: 'D', vit: 'C', agi: 'D', int: 'C', mnd: 'A+', chr: 'B' },
     speed: 0.90,
+    hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'heal',   // HP70%未満の味方がいればケアル、いなければ物理
     ability: {
       id: 'benediction',
@@ -99,6 +102,7 @@ export const JOBS = {
     color: '#8a6fd0',
     grades: { hp: 'E', mp: 'A+', str: 'E', dex: 'D', vit: 'D', agi: 'D', int: 'A+', mnd: 'C', chr: 'D' },
     speed: 0.80,
+    hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'magic',  // ファイア。MPが尽きたら杖で殴る
     ability: {
       id: 'manafont',
@@ -123,6 +127,7 @@ export const JOBS = {
     color: '#c0506a',
     grades: { hp: 'C', mp: 'B', str: 'C', dex: 'B', vit: 'C', agi: 'B', int: 'B', mnd: 'B', chr: 'B' },
     speed: 1.10,
+    hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',
     ability: {
       id: 'chainspell',
@@ -147,6 +152,7 @@ export const JOBS = {
     color: '#5aa46a',
     grades: { hp: 'C', mp: 'E', str: 'C', dex: 'A+', vit: 'C', agi: 'A', int: 'D', mnd: 'D', chr: 'B' },
     speed: 1.20,
+    hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',
     ability: {
       id: 'perfect_dodge',
@@ -165,6 +171,9 @@ export const JOBS = {
 };
 
 export const JOB_IDS = Object.keys(JOBS);
+
+// ヘイト倍率の既定値（ジョブに hateRate が無い場合に使う）
+export const DEFAULT_HATE_RATE = 1.0;
 
 // 限界突破に必要なアイテム名
 export function proofName(jobId) {
