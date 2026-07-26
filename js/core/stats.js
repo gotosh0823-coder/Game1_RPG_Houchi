@@ -5,6 +5,7 @@
 
 import { JOBS, GRADE, LEVEL_CAP } from '../data/jobs.js';
 import { equipmentStats } from '../data/equipment.js';
+import { bonuses } from './achievements.js';
 
 // 基礎値。仕様の初期案（HP30 / MP0）ではLv1が脆すぎて1ステージ目のボスで
 // 詰まるため、実際に動かして調整した値を入れてある。
@@ -57,16 +58,23 @@ const STAT_KEYS = ['hp', 'mp', 'str', 'dex', 'vit', 'agi', 'int', 'mnd', 'chr'];
  * レベルぶん（素のステータス）と装備ぶんを合算して返す。
  * atk は武器の攻撃力で、ステータスとは別枠。
  */
-export function totalStats(jobId, level, limitBreaks, maxStage) {
+export function totalStats(jobId, level, limitBreaks, maxStage, state = null) {
   const job = JOBS[jobId];
   const base = calcStats(jobId, level, limitBreaks);
   const gear = equipmentStats(job, maxStage);
 
-  const out = { atk: gear.atk };
+  // 実績ボーナス（加算%と乗算）
+  const b = state ? bonuses(state, jobId) : null;
+  const allMul = b ? (1 + b.allStatsAdd / 100) * b.allStatsMul : 1;
+
+  const out = { atk: gear.atk * allMul * (b ? 1 + b.atkAdd / 100 : 1) };
   for (const k of STAT_KEYS) {
     // MPを持たないジョブには装備のMPも乗せない
     if (k === 'mp' && base.mp === 0) { out.mp = 0; continue; }
-    out[k] = base[k] + gear[k];
+    let v = (base[k] + gear[k]) * allMul;
+    if (b && k === 'hp') v *= 1 + b.hpAdd / 100;
+    if (b && k === 'vit') v *= 1 + b.vitAdd / 100;
+    out[k] = Math.floor(v);
   }
   return out;
 }

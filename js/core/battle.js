@@ -44,6 +44,9 @@ export class Battle {
   startStage(stage) {
     this.save.stage = stage;
     this.battleIndex = 0;
+    // 実績用：このステージ中にオートを使ったか／誰か倒れたか
+    this.autoUsedThisStage = false;
+    this.anyDownThisStage = false;
     this.allies = this.save.party.map((jobId, slot) => this.makeAlly(jobId, slot));
     this.spawn();
     this.emit('stage', { stage });
@@ -53,7 +56,7 @@ export class Battle {
     const job = JOBS[jobId];
     const jd = this.save.jobs[jobId];
     // 素のステータス＋装備4部位の補正
-    const st = totalStats(jobId, jd.level, jd.limitBreaks, this.save.maxStage);
+    const st = totalStats(jobId, jd.level, jd.limitBreaks, this.save.maxStage, this.save);
     const maxHp = st.hp;
 
     return {
@@ -293,7 +296,11 @@ export class Battle {
     if (target.hp <= 0) {
       target.hp = 0;
       target.alive = false;
-      if (target.isMetal) this.grantMetalReward(target);
+      this.save.stats.kills++;
+      if (target.isMetal) {
+        this.save.stats.metalKills++;
+        this.grantMetalReward(target);
+      }
       this.emit('kill', { target });
     }
   }
@@ -422,6 +429,7 @@ export class Battle {
       target.hp = 0;
       target.alive = false;
       target.hate = 0;
+      this.anyDownThisStage = true;
       this.emit('down', { target });
     }
   }
@@ -483,13 +491,17 @@ export class Battle {
       }
     }
 
+    this.save.stats.abilityUses++;
     this.emit('ability', { unit: a, ability: ab });
     return true;
   }
 
   autoUse() {
     for (let i = 0; i < this.allies.length; i++) {
-      if (this.canUse(i)) this.useAbility(i);
+      if (this.canUse(i)) {
+        this.autoUsedThisStage = true;
+        this.useAbility(i);
+      }
     }
   }
 
@@ -500,6 +512,7 @@ export class Battle {
     const stage = this.save.stage;
     const gold = goldPerBattle(stage) * METAL.goldMultiplier * (1 + this.treasureBonus() / 100);
     this.save.gold += gold;
+    this.save.stats.totalGold += gold;
 
     const exp = expPerBattle(stage) * METAL.expMultiplier;
     for (const id of [...new Set(this.save.party)]) this.gainExp(id, exp);
@@ -522,6 +535,8 @@ export class Battle {
     // ゴールド（トレジャーハンターは編成に入っている枠ぶん加算）
     const gold = goldPerBattle(stage) * (isBoss ? 5 : 1) * (1 + this.treasureBonus() / 100);
     this.save.gold += gold;
+    this.save.stats.totalGold += gold;
+    if (isBoss) this.save.stats.bossKills++;
 
     // EXP（ジョブ単位で1回だけ。重複編成でも倍にはならない）
     const jobIds = [...new Set(this.save.party)];
@@ -533,6 +548,7 @@ export class Battle {
 
     if (isBoss) {
       if (stage >= PROOF_DROP_STAGE) this.rollProofs();
+      this.recordStageClear(stage);
       this.save.maxStage = Math.max(this.save.maxStage, stage + 1);
       this.startStage(stage + 1);
       return;
@@ -544,6 +560,21 @@ export class Battle {
     }
     this.battleIndex++;
     this.spawn();
+  }
+
+  /** ステージをクリアしたときの実績カウント */
+  recordStageClear(stage) {
+    const st = this.save.stats;
+    if (!this.autoUsedThisStage) st.manualStageClears++;
+    if (!this.anyDownThisStage) st.flawlessStageClears++;
+
+    // 同ジョブ4人でステージ50以上をクリア
+    if (stage >= 50) {
+      const first = this.save.party[0];
+      if (this.save.party.every(id => id === first)) {
+        st.job4clear[first] = 1;
+      }
+    }
   }
 
   rollProofs() {
@@ -571,6 +602,7 @@ export class Battle {
   }
 
   wipe() {
+    this.save.stats.wipes++;
     this.emit('wipe', { stage: this.save.stage });
     this.startStage(this.save.stage);
   }

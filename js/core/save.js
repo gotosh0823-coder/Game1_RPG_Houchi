@@ -6,6 +6,7 @@
 
 import { JOB_IDS, LEVEL_CAP } from '../data/jobs.js';
 import { expToNext } from './stats.js';
+import { newStats } from './achievements.js';
 import {
   goldPerBattle, expPerBattle, BATTLES_PER_STAGE, PROOF_DROP_STAGE,
 } from '../data/enemies.js';
@@ -30,6 +31,8 @@ export function newSave() {
     // ガチャ通貨。デバッグ環境なので初期課金ぶんとして200個持たせてある
     alexandrite: 200,
     autoMode: true,
+    stats: newStats(),          // 実績の計測値
+    achievements: {},           // 取得済みの実績（キー → 1）
     unlockedJobs: [...JOB_IDS],
     jobs,
     party: ['war', 'mnk', 'whm', 'blm'],
@@ -79,6 +82,10 @@ function migrate(data) {
   for (const id of JOB_IDS) {
     out.jobs[id] = { ...base.jobs[id], ...(out.jobs[id] || {}) };
   }
+  out.stats = { ...base.stats, ...(data.stats || {}) };
+  out.stats.firstRarity = { ...(data.stats?.firstRarity || {}) };
+  out.stats.job4clear = { ...(data.stats?.job4clear || {}) };
+  out.achievements = { ...(data.achievements || {}) };
   if (!Array.isArray(out.party) || out.party.length !== 4) out.party = base.party;
   out.party = out.party.map(id => (JOB_IDS.includes(id) ? id : 'war'));
   return out;
@@ -102,6 +109,7 @@ export function applyOffline(state) {
   const expGain = (perStageExp / ASSUMED_STAGE_SECONDS) * capped * OFFLINE_RATE;
 
   state.gold += gold;
+  state.stats.totalGold += gold;
 
   const levelups = [];
   for (const id of [...new Set(state.party)]) {

@@ -20,6 +20,7 @@ python3 -m http.server 8000
 | 画面 | 状態 |
 | --- | --- |
 | 戦闘 | 実装済み |
+| 実績 | 実装済み（自動取得＋通知、進捗バー） |
 | 編成 / 装備 / 店 / 設定 | **仮画面**（切り替わって画面名が出るだけ） |
 
 戦闘まわりは仕様どおり動く。ジョブレベル・EXP・ゴールド・セーブ・
@@ -51,6 +52,8 @@ js/
   data/jobs.js       ジョブ定義（ステータス補正・固有アビ・パッシブ）
   data/equipment.js  装備テーブル（4部位・ティア）
   data/enemies.js    敵の数値テーブル
+  data/achievements.js 実績の定義
+  core/achievements.js 実績の計測・判定・報酬
   core/stats.js      ステータス計算・EXP・装備の暫定スケーリング
   core/battle.js     戦闘シミュレータ
   core/save.js       セーブ／ロード・オフライン報酬・限界突破

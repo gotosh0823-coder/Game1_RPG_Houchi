@@ -8,6 +8,7 @@ import { Battle, TICK } from './core/battle.js';
 import { load, save, applyOffline, wipeSave, canLimitBreak, doLimitBreak } from './core/save.js';
 import { JOBS, proofName } from './data/jobs.js';
 import { METAL } from './data/enemies.js';
+import { claim, progress } from './core/achievements.js';
 import { Renderer, shortNum } from './ui/render.js';
 
 const state = load();
@@ -104,6 +105,7 @@ const screens = {
   party: document.getElementById('screen-party'),
   equip: document.getElementById('screen-equip'),
   shop: document.getElementById('screen-shop'),
+  achievements: document.getElementById('screen-achievements'),
   settings: document.getElementById('screen-settings'),
 };
 const abilityBar = document.getElementById('ability-bar');
@@ -117,6 +119,7 @@ function showScreen(name) {
   }
   // アビリティバーは戦闘画面でだけ出す
   abilityBar.classList.toggle('is-visible', name === 'battle');
+  if (name === 'achievements') renderAchievements();
 }
 
 for (const btn of document.querySelectorAll('#nav button')) {
@@ -147,6 +150,44 @@ speedBtn.addEventListener('click', () => {
   speedBtn.textContent = `×${speed}`;
   speedBtn.classList.toggle('fast', speed > 1);
 });
+
+// --- 実績 ---
+//
+// 自動取得。達成した瞬間に報酬が入り、通知が出る。受け取り操作は無い。
+
+const achList = document.getElementById('ach-list');
+
+function checkAchievements() {
+  const unlocked = claim(state);
+  for (const a of unlocked) {
+    renderer.toast(`実績「${a.name}」${a.alex > 0 ? ` アレキ+${a.alex}` : ''}`);
+  }
+  if (unlocked.length > 0) {
+    renderAlexandrite();
+    // ステータス補正が変わるので、次のステージから反映される
+    if (screens.achievements.classList.contains('is-active')) renderAchievements();
+  }
+}
+
+function renderAchievements() {
+  const rows = progress(state);
+  achList.innerHTML = '';
+  for (const g of rows) {
+    const el = document.createElement('div');
+    el.className = 'ach' + (g.done === g.total ? ' done' : '');
+    const pct = g.next && g.next.need > 0
+      ? Math.min(100, (g.next.now / g.next.need) * 100)
+      : 100;
+    el.innerHTML = `
+      <div class="ach-head">
+        <span class="ach-name">${g.name}</span>
+        <span class="ach-count">${g.done} / ${g.total}</span>
+      </div>
+      <div class="ach-next">${g.next ? g.next.desc : 'すべて達成'}</div>
+      <div class="ach-bar"><i style="width:${pct}%"></i></div>`;
+    achList.appendChild(el);
+  }
+}
 
 // --- デバッグ用：アレキサンドライト追加（左上） ---
 //
@@ -196,8 +237,12 @@ function frame(now) {
   if (acc > TICK * maxTicks) acc = 0;   // 追いつけないぶんは捨てる
 
   renderer.update(battle, state);
+  achTimer += dt;
+  if (achTimer >= 1) { achTimer = 0; checkAchievements(); }
   requestAnimationFrame(frame);
 }
+let achTimer = 0;
+checkAchievements();
 requestAnimationFrame(frame);
 
 // --- セーブ ---

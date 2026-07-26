@@ -322,6 +322,46 @@ html, body {
 }
 #nav button.is-active { color: var(--text); box-shadow: inset 0 2px 0 var(--accent); }
 
+/* ---------- 実績画面 ---------- */
+
+#screen-achievements { overflow-y: auto; }
+
+#ach-list {
+  width: 100%;
+  padding: 10px 12px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ach {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 9px 11px;
+}
+.ach.done { border-color: var(--gold); }
+
+.ach-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.ach-name { font-size: 13px; font-weight: 700; }
+.ach-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.ach.done .ach-count { color: var(--gold); }
+
+.ach-next { font-size: 11px; color: var(--dim); margin-bottom: 5px; }
+.ach-bar { height: 4px; border-radius: 3px; background: rgba(0,0,0,.45); overflow: hidden; }
+.ach-bar > i { display: block; height: 100%; background: var(--accent); }
+.ach.done .ach-bar > i { background: var(--gold); }
+
 /* ---------- 仮画面 ---------- */
 
 .placeholder { align-items: center; justify-content: center; }
