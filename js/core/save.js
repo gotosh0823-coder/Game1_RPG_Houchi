@@ -27,6 +27,8 @@ export function newSave() {
     stage: 1,
     maxStage: 1,
     gold: 0,
+    // ガチャ通貨。デバッグ環境なので初期課金ぶんとして200個持たせてある
+    alexandrite: 200,
     autoMode: true,
     unlockedJobs: [...JOB_IDS],
     jobs,

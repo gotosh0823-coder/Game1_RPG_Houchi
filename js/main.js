@@ -148,6 +148,28 @@ speedBtn.addEventListener('click', () => {
   speedBtn.classList.toggle('fast', speed > 1);
 });
 
+// --- デバッグ用：アレキサンドライト追加（左上） ---
+//
+// ガチャは未実装。通貨だけ先に持たせてある。
+// デバッグ環境なので初期200個＋このボタンで200個ずつ足せる。
+
+const ALEX_DEBUG_ADD = 200;
+const alexBtn = document.getElementById('alex-add');
+const alexCount = document.getElementById('alex-count');
+
+function renderAlexandrite() {
+  alexCount.textContent = shortNum(state.alexandrite ?? 0);
+}
+alexBtn.addEventListener('click', () => {
+  state.alexandrite = (state.alexandrite ?? 0) + ALEX_DEBUG_ADD;
+  renderAlexandrite();
+  renderer.toast(`アレキサンドライト +${ALEX_DEBUG_ADD}`);
+  alexBtn.classList.add('bump');
+  setTimeout(() => alexBtn.classList.remove('bump'), 400);
+  save(state);
+});
+renderAlexandrite();
+
 // --- ゲームループ ---
 //
 // 実時間ベースで進める。タブが非アクティブでも復帰時にまとめて追いつく。
@@ -222,7 +244,12 @@ window.game = {
     return ok;
   },
   // バランス確認用
-  METAL,          // game.METAL.rate = 1 でメタルスライムを毎回出せる
+  METAL,
+  addAlexandrite: (n = ALEX_DEBUG_ADD) => {
+    state.alexandrite = (state.alexandrite ?? 0) + n;
+    renderAlexandrite();
+    return state.alexandrite;
+  },          // game.METAL.rate = 1 でメタルスライムを毎回出せる
   jump: (stage) => {
     state.stage = stage;
     state.maxStage = Math.max(state.maxStage, stage);

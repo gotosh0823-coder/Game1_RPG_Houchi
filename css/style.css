@@ -65,6 +65,25 @@ html, body {
   font-variant-numeric: tabular-nums;
   cursor: pointer;
 }
+/* デバッグ用：アレキサンドライト追加（左上） */
+#alex-add {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: #7fd4e8;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+#alex-add:active { transform: translateY(1px); }
+#alex-add.bump { border-color: #7fd4e8; box-shadow: 0 0 8px -2px #7fd4e8; }
+
 #speed-toggle.fast {
   color: #f0b45a;
   border-color: #f0b45a;
