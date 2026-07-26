@@ -10,6 +10,13 @@ import { JOBS, GRADE, LEVEL_CAP } from '../data/jobs.js';
 const HP_BASE = 150;
 const MP_BASE = 40;
 
+// レベルごとの伸び。
+// 当初はHP12 / ステータス1.1 / MP7だったが、レベルだけで味方が強くなりすぎ、
+// 敵の攻撃がまったく脅威にならなかったため半分程度まで落としてある。
+const HP_PER_LEVEL = 6;
+const MP_PER_LEVEL = 3.5;
+const STAT_PER_LEVEL = 0.55;
+
 export function calcStats(jobId, level, limitBreaks = 0) {
   const job = JOBS[jobId];
   const g = job.grades;
@@ -21,13 +28,13 @@ export function calcStats(jobId, level, limitBreaks = 0) {
   const mpCoef = hasMp ? GRADE[g.mp] : 0;
 
   const s = {
-    hp: Math.floor((HP_BASE + GRADE[g.hp] * 12 * lv) * bonus) + 5 * limitBreaks,
+    hp: Math.floor((HP_BASE + GRADE[g.hp] * HP_PER_LEVEL * lv) * bonus) + 5 * limitBreaks,
     mp: hasMp
-      ? Math.floor((MP_BASE + mpCoef * 7 * lv) * bonus) + 5 * limitBreaks
+      ? Math.floor((MP_BASE + mpCoef * MP_PER_LEVEL * lv) * bonus) + 5 * limitBreaks
       : 0,
   };
   for (const k of ['str', 'dex', 'vit', 'agi', 'int', 'mnd', 'chr']) {
-    s[k] = Math.floor((5 + GRADE[g[k]] * 1.1 * lv) * bonus) + 1 * limitBreaks;
+    s[k] = Math.floor((5 + GRADE[g[k]] * STAT_PER_LEVEL * lv) * bonus) + 1 * limitBreaks;
   }
   return s;
 }

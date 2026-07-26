@@ -18,6 +18,7 @@ const FIRE_MP = 8;
 const TP_PER_HIT = 8;
 const WS_MULTIPLIER = 3.0;
 const BATTLE_HEAL_RATE = 0.05;        // 戦闘間の自動回復
+const MIN_HATE_SHARE = 5;             // 誰でも最低これだけは狙われる(%)
 
 function rand(a, b) { return a + Math.random() * (b - a); }
 
@@ -308,7 +309,7 @@ export class Battle {
   // --- 敵の行動 ---
 
   enemyAct(e) {
-    const target = this.topHate();
+    const target = this.rollTarget();
     if (!target) return;
 
     const hitRate = Math.max(20, Math.min(95, 75 + (e.agi - target.stats.agi) * 0.5));
@@ -340,10 +341,56 @@ export class Battle {
     }
   }
 
-  topHate() {
+  /**
+   * ヘイトを「狙われる確率(%)」に変換する。
+   *
+   * 最大ヘイトの1人を必ず狙う方式だと、盾役以外に一切攻撃が飛ばず、
+   * 後衛が減らないので回復も緊張も意味を持たなくなる。
+   * そこでヘイトの比率をそのまま抽選確率にし、全員に最低 MIN_HATE_SHARE% を保証する。
+   *
+   * 例）戦士30 / モンク50 / 白10 / 黒10 → その比率で狙われる
+   *
+   * 返り値は aliveAllies() と同じ並びの配列（合計100）。
+   */
+  hateShares(list = this.aliveAllies()) {
+    const n = list.length;
+    if (n === 0) return [];
+    if (n === 1) return [100];
+
+    // 全員に最低保証を配れない人数のときは均等割り
+    if (MIN_HATE_SHARE * n >= 100) return list.map(() => 100 / n);
+
+    const total = list.reduce((sum, a) => sum + Math.max(0, a.hate), 0);
+    if (total <= 0) return list.map(() => 100 / n);
+
+    const shares = list.map(a => Math.max(0, a.hate) / total * 100);
+
+    // 最低保証を下回るぶんを、上回っている側から比例して分けてもらう
+    const deficit = shares.reduce((sum, w) => sum + Math.max(0, MIN_HATE_SHARE - w), 0);
+    if (deficit <= 0) return shares;
+
+    const surplus = shares.reduce((sum, w) => sum + Math.max(0, w - MIN_HATE_SHARE), 0);
+    if (surplus <= 0) return list.map(() => 100 / n);
+
+    return shares.map(w => (
+      w < MIN_HATE_SHARE
+        ? MIN_HATE_SHARE
+        : w - deficit * (w - MIN_HATE_SHARE) / surplus
+    ));
+  }
+
+  /** ヘイトの比率で狙う相手を抽選する */
+  rollTarget() {
     const list = this.aliveAllies();
     if (list.length === 0) return null;
-    return list.reduce((m, a) => (a.hate > m.hate ? a : m), list[0]);
+
+    const shares = this.hateShares(list);
+    let roll = Math.random() * 100;
+    for (let i = 0; i < list.length; i++) {
+      roll -= shares[i];
+      if (roll <= 0) return list[i];
+    }
+    return list[list.length - 1];
   }
 
   damageAlly(target, dmg) {
