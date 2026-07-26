@@ -3,14 +3,16 @@
 // 固有名詞（ジョブ名・アビリティ名）を差し替える場合は、このファイルだけを
 // 書き換えれば済むようにしてある。ロジック側は id しか参照しない。
 
+// グレード係数。レベルごとの伸びに掛かる。
+// 当初の半分（A+ = 1.00）では味方の伸びが物足りなかったため2倍にしてある。
 export const GRADE = {
-  'A+': 1.00,
-  'A': 0.90,
-  'B': 0.80,
-  'C': 0.70,
-  'D': 0.60,
-  'E': 0.50,
-  'F': 0.40,
+  'A+': 2.00,
+  'A': 1.80,
+  'B': 1.60,
+  'C': 1.40,
+  'D': 1.20,
+  'E': 1.00,
+  'F': 0.80,
 };
 
 export const LEVEL_CAP = 75;
@@ -26,6 +28,8 @@ export const JOBS = {
     icon: '⚔️',
     color: '#d2603f',
     grades: { hp: 'A', mp: 'F', str: 'A', dex: 'B', vit: 'A', agi: 'C', int: 'E', mnd: 'D', chr: 'C' },
+    weaponType: 'axe',
+    armorRank: 'heavy',
     speed: 1.00,          // 1秒あたりの行動回数（基準値）
     hateRate: 1.5,        // ヘイト倍率（狙われやすさ）。盾役として前に立たせる
     autoAction: 'physical',
@@ -51,6 +55,8 @@ export const JOBS = {
     icon: '👊',
     color: '#c9973a',
     grades: { hp: 'A+', mp: 'F', str: 'A', dex: 'B', vit: 'A+', agi: 'B', int: 'F', mnd: 'C', chr: 'C' },
+    weaponType: 'h2h',
+    armorRank: 'medium',
     speed: 1.30,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',
@@ -76,6 +82,8 @@ export const JOBS = {
     icon: '✨',
     color: '#d8d2c0',
     grades: { hp: 'D', mp: 'A', str: 'D', dex: 'D', vit: 'C', agi: 'D', int: 'C', mnd: 'A+', chr: 'B' },
+    weaponType: 'pole',
+    armorRank: 'light',
     speed: 0.90,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'heal',   // HP70%未満の味方がいればケアル、いなければ物理
@@ -101,6 +109,8 @@ export const JOBS = {
     icon: '🔮',
     color: '#8a6fd0',
     grades: { hp: 'E', mp: 'A+', str: 'E', dex: 'D', vit: 'D', agi: 'D', int: 'A+', mnd: 'C', chr: 'D' },
+    weaponType: 'rod',
+    armorRank: 'light',
     speed: 0.80,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'magic',  // ファイア。MPが尽きたら杖で殴る
@@ -126,6 +136,8 @@ export const JOBS = {
     icon: '🗡',
     color: '#c0506a',
     grades: { hp: 'C', mp: 'B', str: 'C', dex: 'B', vit: 'C', agi: 'B', int: 'B', mnd: 'B', chr: 'B' },
+    weaponType: 'sword',
+    armorRank: 'medium',
     speed: 1.10,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',
@@ -151,6 +163,8 @@ export const JOBS = {
     icon: '🏹',
     color: '#5aa46a',
     grades: { hp: 'C', mp: 'E', str: 'C', dex: 'A+', vit: 'C', agi: 'A', int: 'D', mnd: 'D', chr: 'B' },
+    weaponType: 'dagger',
+    armorRank: 'light',
     speed: 1.20,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',

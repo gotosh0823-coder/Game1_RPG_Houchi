@@ -4,7 +4,7 @@
 // 仕様 §6 準拠。
 
 import { JOBS, PASSIVE, DEFAULT_HATE_RATE } from '../data/jobs.js';
-import { calcStats, expToNext, gearMultiplier, weaponDamage } from './stats.js';
+import { totalStats, expToNext } from './stats.js';
 import {
   makeEnemies, BATTLES_PER_STAGE, BOSS_AOE_INTERVAL, BOSS_AOE_MULTIPLIER,
   goldPerBattle, expPerBattle, PROOF_DROP_STAGE, PROOF_DROP_RATE, METAL,
@@ -19,6 +19,7 @@ const TP_PER_HIT = 8;
 const WS_MULTIPLIER = 3.0;
 const BATTLE_HEAL_RATE = 0.05;        // 戦闘間の自動回復
 const MIN_HATE_SHARE = 5;             // 誰でも最低これだけは狙われる(%)
+const VIT_DEFENSE = 2;                // 被ダメージ計算でVITに掛かる係数
 
 function rand(a, b) { return a + Math.random() * (b - a); }
 
@@ -51,18 +52,15 @@ export class Battle {
   makeAlly(jobId, slot) {
     const job = JOBS[jobId];
     const jd = this.save.jobs[jobId];
-    const st = calcStats(jobId, jd.level, jd.limitBreaks);
-    // 装備は未実装なので、到達ステージ相応の装備を着けているものとして扱う
-    const gear = gearMultiplier(this.save.maxStage);
-    const maxHp = Math.floor(st.hp * gear);
+    // 素のステータス＋装備4部位の補正
+    const st = totalStats(jobId, jd.level, jd.limitBreaks, this.save.maxStage);
+    const maxHp = st.hp;
 
     return {
       slot, jobId, job,
       level: jd.level,
       limitBreaks: jd.limitBreaks,
       stats: st,
-      gear,
-      weaponD: weaponDamage(this.save.maxStage),
       maxHp, hp: maxHp,
       maxMp: st.mp, mp: st.mp,
       gauge: Math.random() * 0.2,
@@ -78,7 +76,7 @@ export class Battle {
     this.enemies = makeEnemies(this.save.stage, this.battleIndex);
     // VITぶんのヘイトを初期値として入れておく（前衛が素で狙われるようにする）
     for (const a of this.allies) {
-      a.hate = a.alive ? a.stats.vit * 10 * a.gear : 0;
+      a.hate = a.alive ? a.stats.vit * 10 : 0;
     }
     this.emit('battle', { index: this.battleIndex, enemies: this.enemies });
   }
@@ -112,10 +110,10 @@ export class Battle {
     return d;
   }
 
-  // 攻撃力・魔力・回復量はいずれも装備倍率が乗る
-  attackPower(a) { return a.weaponD + a.stats.str * 0.5 * a.gear; }
-  magicPower(a) { return a.stats.int * 1.8 * a.gear; }
-  healPower(a) { return a.stats.mnd * 2.5 * a.gear; }
+  // 攻撃力・魔力・回復量。装備の補正はステータスに合算済み
+  attackPower(a) { return a.stats.atk + a.stats.str * 0.5; }
+  magicPower(a) { return a.stats.int * 1.8; }
+  healPower(a) { return a.stats.mnd * 2.5; }
 
   // --- メインループ ---
 
@@ -306,6 +304,20 @@ export class Battle {
     this.emit('heal', { target, amount });
   }
 
+  /**
+   * 味方が受けるダメージ。
+   *
+   *   被ダメージ = 敵ATK × 敵ATK / (敵ATK + VIT × 2)
+   *
+   * 以前の `100 / (100 + VIT×2)` は、VITがレベルぶんしか伸びない前提の式だった。
+   * 装備でVITが指数的に伸びるようになると軽減率が100%に近づき、
+   * 味方が事実上無敵になってしまう。
+   * 上の式は敵ATKとVITが同じ速さで伸びるかぎり軽減率が一定に保たれる。
+   */
+  incomingDamage(rawAtk, target) {
+    return rawAtk * rawAtk / (rawAtk + target.stats.vit * VIT_DEFENSE);
+  }
+
   // --- 敵の行動 ---
 
   enemyAct(e) {
@@ -318,8 +330,7 @@ export class Battle {
       return;
     }
 
-    const dmg = e.atk * 100 / (100 + target.stats.vit * 2) * rand(0.9, 1.1);
-    this.damageAlly(target, dmg);
+    this.damageAlly(target, this.incomingDamage(e.atk, target) * rand(0.9, 1.1));
 
     // カウンター
     if (target.alive && target.job.passive.id === 'counter') {
@@ -332,7 +343,7 @@ export class Battle {
   enemyAoe(e) {
     this.emit('aoe', { enemy: e });
     for (const a of this.aliveAllies()) {
-      let dmg = e.atk * BOSS_AOE_MULTIPLIER * 100 / (100 + a.stats.vit * 2);
+      let dmg = this.incomingDamage(e.atk * BOSS_AOE_MULTIPLIER, a);
       // 白：女神の羽衣（本人のみ）
       if (a.job.passive.id === 'goddess_robe') {
         dmg *= (1 - PASSIVE.goddessRobe(a.level) / 100);

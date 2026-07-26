@@ -4,6 +4,7 @@
 //   限界突破回数を N とすると 成長ボーナス = 1 + 0.05 * N
 
 import { JOBS, GRADE, LEVEL_CAP } from '../data/jobs.js';
+import { equipmentStats } from '../data/equipment.js';
 
 // 基礎値。仕様の初期案（HP30 / MP0）ではLv1が脆すぎて1ステージ目のボスで
 // 詰まるため、実際に動かして調整した値を入れてある。
@@ -44,31 +45,28 @@ export function expToNext(level) {
   return Math.floor(40 * Math.pow(level, 1.9));
 }
 
-// --- 装備（暫定スケーリング） ---
+// --- 装備込みの合計ステータス ---
 //
-// 店が未実装のため、v0では「最高到達ステージ相応の装備を全員が自動的に
-// 身に着けている」ものとして扱う。
-//
-// 仕様 §7.3 の「10ステージごとに新ティア（×1.42）」は、敵の伸び（×1.45/ステージ）
-// に対して桁が足りず、実際に動かすと数ステージで一切勝てなくなる。
-// そのためここでは、装備の強さをステージに対して連続的に伸ばしている。
-//   倍率 1.421 は敵HPの伸び 1.45・敵ATKの伸び 1.46 より小さい
-//   → 進むほど不利になり、ステージ30前後で全滅し始める
-// 店を実装する際は、この曲線を装備ティアの価格・性能に落とし込む必要がある。
-//
-// この値はきわめて敏感で、30ステージぶん複利で効く。
-//   1.425 … 最後まで一度も全滅しない
-//   1.421 … ステージ28前後で全滅し始める（現在の設定）
-//   1.415 … ステージ20から全滅を繰り返し、進行が止まる
-// 今後ほかの強化要素を足すときは、ここを一緒に見直すこと。
+// 装備はステータスを「加算」する（js/data/equipment.js）。
+// 以前あった抽象的な装備倍率（GEAR_GROWTH）は廃止した。
+// プレイヤー側で指数的に伸びる軸は、いまは装備ティアだけが担っている。
 
-export const GEAR_GROWTH = 1.421;
-const WEAPON_BASE = 6;
+const STAT_KEYS = ['hp', 'mp', 'str', 'dex', 'vit', 'agi', 'int', 'mnd', 'chr'];
 
-export function gearMultiplier(maxStage) {
-  return Math.pow(GEAR_GROWTH, Math.max(0, maxStage - 1));
-}
+/**
+ * レベルぶん（素のステータス）と装備ぶんを合算して返す。
+ * atk は武器の攻撃力で、ステータスとは別枠。
+ */
+export function totalStats(jobId, level, limitBreaks, maxStage) {
+  const job = JOBS[jobId];
+  const base = calcStats(jobId, level, limitBreaks);
+  const gear = equipmentStats(job, maxStage);
 
-export function weaponDamage(maxStage) {
-  return WEAPON_BASE * gearMultiplier(maxStage);
+  const out = { atk: gear.atk };
+  for (const k of STAT_KEYS) {
+    // MPを持たないジョブには装備のMPも乗せない
+    if (k === 'mp' && base.mp === 0) { out.mp = 0; continue; }
+    out[k] = base[k] + gear[k];
+  }
+  return out;
 }
