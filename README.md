@@ -37,6 +37,7 @@ python3 -m http.server 8000
   （倍率・固定値をすべて集めたもの。数値を触るときはここを見る）
 - [docs/spec-equipment.md](docs/spec-equipment.md) — 装備システムの仕様（実装前・ドラフト）
   （レア度／グループ／レベル強化／合成／ドロップ／ガチャ）
+- [data/equipment.csv](data/equipment.csv) — 装備リスト（Excelで編集可）
 
 ## 構成
 
