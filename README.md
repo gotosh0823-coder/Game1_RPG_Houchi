@@ -32,6 +32,8 @@ python3 -m http.server 8000
 
 - [docs/spec-v0.md](docs/spec-v0.md) — 仕様書
   （ジョブ／戦闘／限界突破／装備／経済／画面構成／実装メモ）
+- [docs/balance.md](docs/balance.md) — バランス定数の一覧
+  （倍率・固定値をすべて集めたもの。数値を触るときはここを見る）
 
 ## 構成
 
