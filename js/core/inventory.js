@@ -132,35 +132,55 @@ export function sellPrice(name, rarity, level) {
 }
 
 // --- 装備 ---
+//
+// 装備は**キャラクター単位**で割り当てる（inv.equipped[キャラ番号][部位]）。
+// 以前はジョブ単位だったが、ジョブレベルをキャラごとに持つようにした時点で
+// 「同じジョブの2人が同じ1本を着ている」状態になり成立しなくなった。
 
-export function equippedIds(state, jobId) {
-  return state.inv.equipped[jobId] || {};
+/** そのキャラのいまのジョブID */
+function jobOf(state, ci) {
+  return state.chars[ci]?.job;
 }
 
-export function equip(state, jobId, itemId) {
+export function equippedIds(state, ci) {
+  return state.inv.equipped[ci] || {};
+}
+
+export function equip(state, ci, itemId) {
   const item = findItem(state, itemId);
   const cat = item && catalogOf(item.name);
-  if (!item || !canEquip(jobId, cat)) return false;
+  if (!item || !canEquip(jobOf(state, ci), cat)) return false;
 
-  // 他のジョブが着けていたら外す
-  for (const [jid, slots] of Object.entries(state.inv.equipped)) {
+  // 他のキャラが着けていたら外す（1本を2人で共有はできない）
+  for (const [key, slots] of Object.entries(state.inv.equipped)) {
     for (const [slot, eq] of Object.entries(slots)) {
-      if (eq === itemId) delete state.inv.equipped[jid][slot];
+      if (eq === itemId) delete state.inv.equipped[key][slot];
     }
   }
-  if (!state.inv.equipped[jobId]) state.inv.equipped[jobId] = {};
-  state.inv.equipped[jobId][cat.slot] = itemId;
+  if (!state.inv.equipped[ci]) state.inv.equipped[ci] = {};
+  state.inv.equipped[ci][cat.slot] = itemId;
   return true;
 }
 
-export function unequip(state, jobId, slot) {
-  if (state.inv.equipped[jobId]) delete state.inv.equipped[jobId][slot];
+export function unequip(state, ci, slot) {
+  if (state.inv.equipped[ci]) delete state.inv.equipped[ci][slot];
 }
 
-/** そのジョブが装備している4部位の合計。atk は武器の攻撃力 */
-export function equippedStats(state, jobId) {
+/** ジョブを変えたときに、着けられなくなった装備を外す */
+export function unequipIncompatible(state, ci) {
+  const slots = state.inv.equipped[ci];
+  if (!slots) return;
+  const job = jobOf(state, ci);
+  for (const [slot, id] of Object.entries({ ...slots })) {
+    const item = findItem(state, id);
+    if (!item || !canEquip(job, catalogOf(item.name))) delete slots[slot];
+  }
+}
+
+/** そのキャラが装備している4部位の合計。atk は武器の攻撃力 */
+export function equippedStats(state, ci) {
   const sum = { atk: 0, hp: 0, mp: 0, str: 0, dex: 0, vit: 0, agi: 0, int: 0, mnd: 0, chr: 0 };
-  const slots = equippedIds(state, jobId);
+  const slots = equippedIds(state, ci);
   for (const id of Object.values(slots)) {
     const item = findItem(state, id);
     if (!item) continue;
@@ -170,9 +190,9 @@ export function equippedStats(state, jobId) {
 }
 
 /** 装備の特殊効果を集計する（ガチャ限定装備のみ） */
-export function equippedEffects(state, jobId) {
+export function equippedEffects(state, ci) {
   const out = {};
-  for (const id of Object.values(equippedIds(state, jobId))) {
+  for (const id of Object.values(equippedIds(state, ci))) {
     const item = findItem(state, id);
     const cat = item && catalogOf(item.name);
     if (!cat || !cat.effect) continue;
@@ -252,8 +272,8 @@ export function fuse(state, name, rarity) {
   // そのまま消すと部位が空いたままになるので、着けていたジョブを覚えておく。
   const ids = new Set(mats.map(m => m.id));
   let wearer = null;
-  for (const [jobId, slots] of Object.entries(state.inv.equipped)) {
-    if (Object.values(slots).some(id => ids.has(id))) { wearer = jobId; break; }
+  for (const [key, slots] of Object.entries(state.inv.equipped)) {
+    if (Object.values(slots).some(id => ids.has(id))) { wearer = Number(key); break; }
   }
 
   state.gold -= fuseCost(name, rarity);
@@ -265,8 +285,8 @@ export function fuse(state, name, rarity) {
   state.stats.fusions++;
   recordAcquire(state, up);
 
-  // 出来上がったものを、素材を着けていたジョブにそのまま着せ直す
-  if (wearer) equip(state, wearer, item.id);
+  // 出来上がったものを、素材を着けていたキャラにそのまま着せ直す
+  if (wearer !== null) equip(state, wearer, item.id);
   return item;
 }
 
@@ -341,23 +361,32 @@ export function gachaPull(state, multi = false) {
  * 裸で始めると1ステージ目のボスで必ず全滅するため、ここは配布前提にしてある。
  */
 export function grantStarterSet(state) {
-  for (const jobId of Object.keys(JOBS)) {
+  state.chars.forEach((c, ci) => {
     for (const slot of SLOTS) {
-      const cat = CATALOG.find(c => c.pool === 'drop' && c.band === 1
-        && c.slot === slot && canEquip(jobId, c));
+      const cat = CATALOG.find(x => x.pool === 'drop' && x.band === 1
+        && x.slot === slot && canEquip(c.job, x));
       if (!cat) continue;
       const item = addItem(state, cat.name, 'N');
-      if (item) equip(state, jobId, item.id);
+      if (item) equip(state, ci, item.id);
     }
-  }
+  });
 }
 
-/** 装備できる候補を、そのジョブ・スロット向けに絞って返す */
-export function candidates(state, jobId, slot) {
+/** 装備できる候補を、そのキャラ・スロット向けに絞って返す */
+export function candidates(state, ci, slot) {
+  const job = jobOf(state, ci);
   return state.inv.items.filter(i => {
     const cat = catalogOf(i.name);
-    return cat && cat.slot === slot && canEquip(jobId, cat);
+    return cat && cat.slot === slot && canEquip(job, cat);
   });
+}
+
+/** その装備を着けているキャラ番号（いなければ null） */
+export function wornBy(state, itemId) {
+  for (const [key, slots] of Object.entries(state.inv.equipped)) {
+    if (Object.values(slots).includes(itemId)) return Number(key);
+  }
+  return null;
 }
 
 /** 所持品を名称＋レア度でまとめる（一覧表示用） */

@@ -3,17 +3,20 @@
 // 仕様は docs/spec-equipment.md と docs/spec-v0.md §9。
 // 描画はすべて「その場で作り直す」方式。項目数がたかだか数百なので、
 // 差分更新は入れていない（画面を開いた時と操作した時にしか呼ばれない）。
+//
+// 編成・装備はどちらも**キャラクター単位**。ジョブレベルはキャラごとに持つ。
 
 import {
   JOBS, LEVEL_CAP, ARMOR_GROUP_NAMES, WEAPON_TYPE_NAMES, proofName,
 } from '../data/jobs.js';
 import { expToNext, totalStats } from '../core/stats.js';
 import { limitBreakCost, canLimitBreak, doLimitBreak } from '../core/save.js';
+import { charJob, jobData, setJob, PARTY_SIZE } from '../core/party.js';
 import {
   RARITIES, RARITY, SLOTS, SLOT_NAMES, STAT_NAMES, INVENTORY_CAP,
   GACHA_SINGLE_COST, GACHA_MULTI_COST, GACHA_MULTI_COUNT, GACHA_RATE_TABLE,
   catalogOf, itemStats, isMaxLevel, equippedIds, equip, unequip, equippedStats,
-  levelUpCost, levelUp, levelUpMax,
+  levelUpCost, levelUp, levelUpMax, unequipIncompatible, wornBy,
   fuseMaterials, nextRarity, fuseCost, canFuse, fuse,
   candidates, grouped, sellItem, sellPrice, gachaPull,
 } from '../core/inventory.js';
@@ -48,8 +51,11 @@ export class Screens {
   constructor(state, hooks = {}) {
     this.state = state;
     this.hooks = hooks;
-    this.equipJob = state.party[0];
-    this.partySlot = 0;
+    this.equipChar = 0;      // 装備画面で見ているキャラ
+    this.partySlot = 0;      // 編成画面で選んでいるキャラ
+    this.equipMode = 'wear'; // wear | forge
+    this.forgeRarity = '';
+    this.forgeSlot = '';
 
     this.sheet = el('sheet');
     this.sheetTitle = el('sheet-title');
@@ -59,6 +65,17 @@ export class Screens {
       if (e.target === this.sheet) this.closeSheet();
     });
 
+    for (const btn of document.querySelectorAll('#equip-mode .tab')) {
+      btn.addEventListener('click', () => {
+        this.equipMode = btn.dataset.mode;
+        for (const b of document.querySelectorAll('#equip-mode .tab')) {
+          b.classList.toggle('is-active', b === btn);
+        }
+        this.renderEquip();
+      });
+    }
+
+    this.initForgeFilters();
     this.initSettings();
     this.initShop();
   }
@@ -84,14 +101,14 @@ export class Screens {
   renderParty() {
     const root = el('party-slots');
     root.innerHTML = '';
-    this.state.party.forEach((jobId, i) => {
-      const job = JOBS[jobId];
-      const jd = this.state.jobs[jobId];
+    this.state.chars.forEach((c, i) => {
+      const job = JOBS[c.job];
+      const jd = c.jobs[c.job];
       const b = document.createElement('button');
       b.className = 'slot' + (i === this.partySlot ? ' is-active' : '');
       b.style.setProperty('--job-color', job.color);
       b.innerHTML = `
-        <span class="slot-no">${i + 1}</span>
+        <span class="slot-no">${c.name}</span>
         <span class="slot-icon">${job.icon}</span>
         <span class="slot-name">${job.short}</span>
         <span class="slot-lv">Lv${jd.level}${jd.limitBreaks ? ` ★${jd.limitBreaks}` : ''}</span>`;
@@ -99,53 +116,63 @@ export class Screens {
       root.appendChild(b);
     });
 
+    // 選択中キャラの、ジョブごとのレベル一覧（キャラ別に持っている）
+    const ci = this.partySlot;
+    const cur = charJob(this.state, ci);
     const list = el('party-jobs');
     list.innerHTML = '';
     for (const jobId of this.state.unlockedJobs) {
       const job = JOBS[jobId];
-      const jd = this.state.jobs[jobId];
-      const inParty = this.state.party.filter(id => id === jobId).length;
+      const jd = this.state.chars[ci].jobs[jobId];
+      const usedBy = this.state.chars
+        .map((c, i) => (c.job === jobId ? i : -1)).filter(i => i >= 0);
       const card = document.createElement('button');
-      card.className = 'card job-card' + (inParty ? ' is-in' : '');
+      card.className = 'card job-card' + (jobId === cur ? ' is-in' : '');
       card.style.setProperty('--job-color', job.color);
       card.innerHTML = `
         <div class="card-head">
           <span class="ic">${job.icon}</span>
           <span class="nm">${job.name}</span>
           <span class="tag">Lv${jd.level}${jd.limitBreaks ? ` ★${jd.limitBreaks}` : ''}</span>
-          ${inParty ? `<span class="tag in">編成中${inParty > 1 ? ` ×${inParty}` : ''}</span>` : ''}
+          ${jobId === cur ? '<span class="tag in">選択中</span>' : ''}
         </div>
         <div class="card-sub">${job.ability.name}／${job.passive.name}</div>
-        <div class="card-sub dim">${WEAPON_TYPE_NAMES[job.weaponType]}・${ARMOR_GROUP_NAMES[job.armorGroup]}防具</div>`;
+        <div class="card-sub dim">${WEAPON_TYPE_NAMES[job.weaponType]}・${ARMOR_GROUP_NAMES[job.armorGroup]}防具
+          ${usedBy.length > 0 ? `／ ${usedBy.map(i => this.state.chars[i].name).join('・')}が就いている` : ''}</div>`;
       card.addEventListener('click', () => {
-        this.state.party[this.partySlot] = jobId;
-        this.partySlot = (this.partySlot + 1) % 4;
+        if (jobId === cur) return;
+        setJob(this.state, ci, jobId, unequipIncompatible);
+        this.toast(`${this.state.chars[ci].name} は ${job.name} になった`);
         this.rebuild();
         this.renderParty();
+        this.changed();
       });
       list.appendChild(card);
     }
 
-    this.renderJobDetail();
+    this.renderCharDetail();
   }
 
-  renderJobDetail() {
-    const jobId = this.state.party[this.partySlot];
-    const job = JOBS[jobId];
-    const jd = this.state.jobs[jobId];
-    const st = totalStats(this.state, jobId);
-    const cost = limitBreakCost(this.state, jobId);
-    const ok = canLimitBreak(this.state, jobId);
+  renderCharDetail() {
+    const ci = this.partySlot;
+    const c = this.state.chars[ci];
+    const job = JOBS[c.job];
+    const jd = jobData(this.state, ci);
+    const st = totalStats(this.state, ci);
+    const cost = limitBreakCost(this.state, ci);
+    const ok = canLimitBreak(this.state, ci);
     const need = expToNext(jd.level);
 
     const root = el('party-detail');
     root.innerHTML = `
-      <h3 class="sub-title">${job.icon} ${job.name}<span class="hint">枠 ${this.partySlot + 1}</span></h3>
+      <h3 class="sub-title">${job.icon} ${c.name}<span class="hint">${job.name}</span></h3>
       <div class="panel">
         <div class="kv"><span>ジョブレベル</span><b>Lv${jd.level} / ${LEVEL_CAP}</b></div>
         <div class="kv"><span>次のレベルまで</span><b>${isFinite(need) ? `${shortNum(need - jd.exp)} EXP` : '—'}</b></div>
         <div class="kv"><span>限界突破</span><b>${jd.limitBreaks} 回</b></div>
-        <div class="kv"><span>${proofName(jobId)}</span><b>${jd.proofs} 個</b></div>
+        <div class="kv"><span>${proofName(c.job)}</span><b>${jd.proofs} 個</b></div>
+        <div class="card-sub dim">レベル・限界突破・証はすべて「このキャラのこのジョブ」のもの。
+          ジョブを変えると、そのジョブのレベルに切り替わる。</div>
         <hr>
         <div class="kv"><span>HP</span><b>${shortNum(st.hp)}</b></div>
         <div class="kv"><span>攻撃力</span><b>${shortNum(st.atk)}</b></div>
@@ -161,15 +188,15 @@ export class Screens {
         <div class="kv"><span>限界突破の条件</span></div>
         <div class="card-sub">
           Lv${LEVEL_CAP} ／ ${shortNum(cost.gold)} ギル ／
-          ${proofName(jobId)} ${cost.proofs}個<br>
+          ${proofName(c.job)} ${cost.proofs}個<br>
           達成するとLv1に戻り、HP・MP+5、他ステータス+1、獲得EXP+50%が永久に付く
         </div>
         <button class="primary" id="btn-lb" ${ok ? '' : 'disabled'}>限界突破する</button>
       </div>`;
 
     el('btn-lb').addEventListener('click', () => {
-      if (!doLimitBreak(this.state, jobId)) return;
-      this.toast(`${job.name} 限界突破！`);
+      if (!doLimitBreak(this.state, ci)) return;
+      this.toast(`${c.name}（${job.name}） 限界突破！`);
       this.rebuild();
       this.renderParty();
       this.changed();
@@ -179,25 +206,28 @@ export class Screens {
   // ============================================================ 装備
 
   renderEquip() {
+    el('equip-wear').classList.toggle('hidden', this.equipMode !== 'wear');
+    el('equip-forge').classList.toggle('hidden', this.equipMode !== 'forge');
+    if (this.equipMode === 'forge') { this.renderForge(); return; }
+
     const tabs = el('equip-tabs');
     tabs.innerHTML = '';
-    for (const jobId of this.state.unlockedJobs) {
-      const job = JOBS[jobId];
+    this.state.chars.forEach((c, ci) => {
+      const job = JOBS[c.job];
       const b = document.createElement('button');
-      b.className = 'tab' + (jobId === this.equipJob ? ' is-active' : '')
-        + (this.state.party.includes(jobId) ? ' is-in' : '');
-      b.innerHTML = `${job.icon}<span>${job.short}</span>`;
-      b.addEventListener('click', () => { this.equipJob = jobId; this.renderEquip(); });
+      b.className = 'tab is-in' + (ci === this.equipChar ? ' is-active' : '');
+      b.innerHTML = `${job.icon}<span>${c.name}</span>`;
+      b.addEventListener('click', () => { this.equipChar = ci; this.renderEquip(); });
       tabs.appendChild(b);
-    }
+    });
 
-    const jobId = this.equipJob;
-    const slots = equippedIds(this.state, jobId);
+    const ci = this.equipChar;
+    const slots = equippedIds(this.state, ci);
     const root = el('equip-slots');
     root.innerHTML = '';
 
     for (const slot of SLOTS) {
-      const item = (this.state.inv.items.find(i => i.id === slots[slot])) || null;
+      const item = this.state.inv.items.find(i => i.id === slots[slot]) || null;
       const card = document.createElement('div');
       card.className = 'card equip-slot' + (item ? '' : ' is-empty');
       if (item) {
@@ -216,7 +246,7 @@ export class Screens {
           </div>`;
         card.querySelector('[data-act="up"]').addEventListener('click', () => this.openItem(item.id));
         card.querySelector('[data-act="off"]').addEventListener('click', () => {
-          unequip(this.state, jobId, slot);
+          unequip(this.state, ci, slot);
           this.rebuild(); this.renderEquip(); this.changed();
         });
       } else {
@@ -227,12 +257,11 @@ export class Screens {
           </div>
           <div class="card-actions"><button data-act="swap">選ぶ</button></div>`;
       }
-      card.querySelector('[data-act="swap"]').addEventListener('click', () => this.openPicker(jobId, slot));
+      card.querySelector('[data-act="swap"]').addEventListener('click', () => this.openPicker(ci, slot));
       root.appendChild(card);
     }
 
-    // 合計
-    const sum = equippedStats(this.state, jobId);
+    const sum = equippedStats(this.state, ci);
     const total = document.createElement('div');
     total.className = 'panel';
     total.innerHTML = `<div class="kv"><span>装備の合計</span></div>
@@ -242,7 +271,7 @@ export class Screens {
     this.renderBag();
   }
 
-  /** 所持品一覧。名称＋レア度でまとめ、合成できるものは合成ボタンを出す */
+  /** 所持品一覧（着せ替えタブ側）。名称＋レア度でまとめる */
   renderBag() {
     el('equip-count').textContent = `${this.state.inv.items.length} / ${INVENTORY_CAP}`;
     const root = el('equip-bag');
@@ -256,63 +285,43 @@ export class Screens {
 
     for (const g of groups) {
       const cat = catalogOf(g.name);
-      const need = RARITY[g.rarity].fuse;
-      const mats = fuseMaterials(this.state, g.name, g.rarity).length;
-      const up = nextRarity(g.rarity);
-      const row = document.createElement('div');
+      const row = document.createElement('button');
       row.className = 'card bag-row';
-      const cost = need && up ? fuseCost(g.name, g.rarity) : 0;
       row.innerHTML = `
         <div class="card-head">
           <span class="nm">${g.name} <span class="rr r-${g.rarity}">${g.rarity}</span></span>
           <span class="tag">×${g.items.length}</span>
           <span class="tag dim">${SLOT_NAMES[cat?.slot] ?? ''}${cat?.pool === 'gacha' ? '・限定' : ''}</span>
         </div>
-        <div class="card-sub">${g.items.map(i => `Lv${i.level}`).join(' / ')}</div>
-        ${need && up
-          ? `<div class="card-sub ${mats >= need ? 'ok' : 'dim'}">合成 → ${up}：上限Lvの素材 ${mats}/${need}・${shortNum(cost)} ギル</div>`
-          : '<div class="card-sub dim">これ以上は合成できない</div>'}
-        <div class="card-actions">
-          <button data-act="detail">個別</button>
-          ${need && up ? `<button data-act="fuse" ${canFuse(this.state, g.name, g.rarity) ? '' : 'disabled'}>合成</button>` : ''}
-        </div>`;
-      row.querySelector('[data-act="detail"]').addEventListener('click', () => this.openGroup(g));
-      const fb = row.querySelector('[data-act="fuse"]');
-      if (fb) {
-        fb.addEventListener('click', () => {
-          const made = fuse(this.state, g.name, g.rarity);
-          if (!made) return;
-          this.toast(`${made.name} が ${made.rarity} になった`);
-          this.rebuild(); this.renderEquip(); this.changed();
-        });
-      }
+        <div class="card-sub">${g.items.map(i => `Lv${i.level}`).join(' / ')}</div>`;
+      row.addEventListener('click', () => this.openGroup(g));
       root.appendChild(row);
     }
   }
 
   /** 部位ごとの付け替え */
-  openPicker(jobId, slot) {
-    const list = candidates(this.state, jobId, slot)
-      .sort((a, b) => power(b) - power(a));
-    const cur = equippedIds(this.state, jobId)[slot];
+  openPicker(ci, slot) {
+    const list = candidates(this.state, ci, slot).sort((a, b) => power(b) - power(a));
+    const cur = equippedIds(this.state, ci)[slot];
+    const c = this.state.chars[ci];
 
-    this.openSheet(`${JOBS[jobId].name}／${SLOT_NAMES[slot]}`, (body) => {
+    this.openSheet(`${c.name}（${JOBS[c.job].name}）／${SLOT_NAMES[slot]}`, (body) => {
       if (list.length === 0) {
         body.innerHTML = '<p class="lead">着けられる装備を持っていない。</p>';
         return;
       }
       for (const item of list) {
         const cat = catalogOf(item.name);
-        const worn = this.wornBy(item.id);
+        const worn = wornBy(this.state, item.id);
         const b = document.createElement('button');
         b.className = 'card pick' + (item.id === cur ? ' is-active' : '');
         b.innerHTML = `
           <div class="card-head"><span class="nm">${itemLabel(item)}</span>
-            ${worn && worn !== jobId ? `<span class="tag warn">${JOBS[worn].short}が装備中</span>` : ''}</div>
+            ${worn !== null && worn !== ci ? `<span class="tag warn">${this.state.chars[worn].name}が装備中</span>` : ''}</div>
           <div class="card-sub">${statsLine(itemStats(item))}</div>
           ${cat && cat.effect ? `<div class="card-sub eff">${cat.effectName} +${cat.effectValue}</div>` : ''}`;
         b.addEventListener('click', () => {
-          equip(this.state, jobId, item.id);
+          equip(this.state, ci, item.id);
           this.closeSheet();
           this.rebuild(); this.renderEquip(); this.changed();
         });
@@ -321,15 +330,6 @@ export class Screens {
     });
   }
 
-  /** その装備を着けているジョブ（いなければ null） */
-  wornBy(itemId) {
-    for (const [jid, slots] of Object.entries(this.state.inv.equipped)) {
-      if (Object.values(slots).includes(itemId)) return jid;
-    }
-    return null;
-  }
-
-  /** 同名・同レア度のまとまりを開く */
   openGroup(g) {
     this.openSheet(`${g.name}（${g.rarity}）`, (body) => {
       for (const item of [...g.items].sort((a, b) => b.level - a.level)) {
@@ -349,13 +349,13 @@ export class Screens {
     const cat = catalogOf(item.name);
     const box = document.createElement('div');
     box.className = 'panel';
-    const worn = this.wornBy(item.id);
+    const worn = wornBy(this.state, item.id);
     const maxed = isMaxLevel(item);
     const cost = maxed ? 0 : levelUpCost(item);
 
     box.innerHTML = `
       <div class="card-head"><span class="nm">${itemLabel(item)}</span>
-        ${worn ? `<span class="tag in">${JOBS[worn].short}が装備中</span>` : ''}</div>
+        ${worn !== null ? `<span class="tag in">${this.state.chars[worn].name}が装備中</span>` : ''}</div>
       <div class="card-sub">${statsLine(itemStats(item))}</div>
       ${cat && cat.effect ? `<div class="card-sub eff">${cat.effectName} +${cat.effectValue}</div>` : ''}
       <div class="card-sub dim">${maxed
@@ -364,13 +364,12 @@ export class Screens {
       <div class="card-actions">
         <button data-act="up1" ${maxed || this.state.gold < cost ? 'disabled' : ''}>強化 +1</button>
         <button data-act="upmax" ${maxed || this.state.gold < cost ? 'disabled' : ''}>払えるだけ</button>
-        <button data-act="sell" class="danger" ${worn ? 'disabled' : ''}>売却 ${shortNum(sellPrice(item.name, item.rarity, item.level))}</button>
+        <button data-act="sell" class="danger" ${worn !== null ? 'disabled' : ''}>売却 ${shortNum(sellPrice(item.name, item.rarity, item.level))}</button>
       </div>`;
 
     const refresh = () => {
       const parent = box.parentNode;
-      const next = this.itemPanel(item);
-      if (parent) parent.replaceChild(next, box);
+      if (parent) parent.replaceChild(this.itemPanel(item), box);
     };
 
     box.querySelector('[data-act="up1"]').addEventListener('click', () => {
@@ -390,6 +389,152 @@ export class Screens {
       this.renderEquip(); this.changed();
     });
     return box;
+  }
+
+  // ============================================================ 強化・合成
+
+  initForgeFilters() {
+    const r = el('forge-rarity');
+    r.innerHTML = '<option value="">レア度すべて</option>'
+      + RARITIES.map(x => `<option value="${x}">${x}</option>`).join('');
+    r.addEventListener('change', () => { this.forgeRarity = r.value; this.renderForge(); });
+
+    const s = el('forge-slot');
+    s.innerHTML = '<option value="">部位すべて</option>'
+      + SLOTS.map(x => `<option value="${x}">${SLOT_NAMES[x]}</option>`).join('');
+    s.addEventListener('change', () => { this.forgeSlot = s.value; this.renderForge(); });
+  }
+
+  /**
+   * 強化・合成タブ。
+   * 同じ名称＋レア度のまとまりごとに、
+   *   「上限まで育てる → 合成する」を1ボタンで進められるようにしてある。
+   */
+  renderForge() {
+    const groups = grouped(this.state).filter(g => {
+      if (this.forgeRarity && g.rarity !== this.forgeRarity) return false;
+      if (this.forgeSlot && catalogOf(g.name)?.slot !== this.forgeSlot) return false;
+      return true;
+    });
+
+    // まとめ
+    const ready = groups.filter(g => canFuse(this.state, g.name, g.rarity)).length;
+    const near = groups.filter(g => {
+      const need = RARITY[g.rarity].fuse;
+      return need && nextRarity(g.rarity) && g.items.length >= need
+        && !canFuse(this.state, g.name, g.rarity);
+    }).length;
+    const growable = groups.filter(g => {
+      const need = RARITY[g.rarity].fuse;
+      return need && nextRarity(g.rarity) && g.items.length >= need;
+    }).length;
+    el('forge-summary').innerHTML = `
+      <div class="kv"><span>所持</span><b>${this.state.inv.items.length} / ${INVENTORY_CAP}</b></div>
+      <div class="kv"><span>ギル</span><b>${shortNum(this.state.gold)}</b></div>
+      <div class="kv"><span>いま合成できる</span><b class="${ready ? 'ok' : ''}">${ready} 種</b></div>
+      <div class="kv"><span>本数はそろっている</span><b>${growable} 種</b></div>
+      <div class="kv"><span>うち育成・費用が不足</span><b>${near} 種</b></div>`;
+
+    const root = el('forge-list');
+    root.innerHTML = '';
+    if (groups.length === 0) {
+      root.innerHTML = '<p class="lead">該当する装備を持っていない。</p>';
+      return;
+    }
+
+    // 合成できるものを先頭へ
+    groups.sort((a, b) => {
+      const ca = canFuse(this.state, a.name, a.rarity) ? 0 : 1;
+      const cb = canFuse(this.state, b.name, b.rarity) ? 0 : 1;
+      return ca - cb || RARITIES.indexOf(b.rarity) - RARITIES.indexOf(a.rarity);
+    });
+
+    for (const g of groups) root.appendChild(this.forgeRow(g));
+  }
+
+  forgeRow(g) {
+    const cat = catalogOf(g.name);
+    const need = RARITY[g.rarity].fuse;
+    const up = nextRarity(g.rarity);
+    const maxed = fuseMaterials(this.state, g.name, g.rarity);
+    const cost = need && up ? fuseCost(g.name, g.rarity) : 0;
+    const ok = canFuse(this.state, g.name, g.rarity);
+
+    // 素材を上限まで育てるのにあといくら要るか
+    const short = [...g.items].sort((a, b) => b.level - a.level).slice(0, need || 0)
+      .reduce((sum, i) => {
+        let c = 0;
+        for (let lv = i.level; lv < RARITY[i.rarity].cap; lv++) {
+          c += Math.floor(levelUpCost({ ...i, level: lv }));
+        }
+        return sum + c;
+      }, 0);
+
+    const row = document.createElement('div');
+    row.className = 'card forge-row' + (ok ? ' is-ready' : '');
+    row.innerHTML = `
+      <div class="card-head">
+        <span class="nm">${g.name} <span class="rr r-${g.rarity}">${g.rarity}</span></span>
+        <span class="tag">×${g.items.length}</span>
+        <span class="tag dim">${SLOT_NAMES[cat?.slot] ?? ''}${cat?.pool === 'gacha' ? '・限定' : ''}</span>
+      </div>
+      <div class="forge-levels">
+        ${g.items.map(i => `<span class="chip${isMaxLevel(i) ? ' max' : ''}">Lv${i.level}</span>`).join('')}
+      </div>
+      ${!need || !up
+        ? `<div class="card-sub dim">これ以上は合成できない（最高レア度）</div>
+           <div class="card-actions"><button data-act="detail">個別</button></div>`
+        : g.items.length < need
+          ? `<div class="kv"><span>合成 → <span class="rr r-${up}">${up}</span></span>
+               <b class="dim">あと ${need - g.items.length} 本</b></div>
+             <div class="card-sub dim">同じ名称を ${need} 本そろえる（ドロップかガチャで重ねる）</div>
+             <div class="card-actions"><button data-act="detail">個別</button></div>`
+          : `<div class="kv"><span>合成 → <span class="rr r-${up}">${up}</span></span>
+               <b class="${maxed.length >= need ? 'ok' : ''}">上限Lvの素材 ${maxed.length} / ${need}</b></div>
+             <div class="kv"><span>合成の費用</span><b>${shortNum(cost)} ギル</b></div>
+             ${short > 0 ? `<div class="kv"><span>素材を上限まで育てる</span><b>${shortNum(short)} ギル</b></div>` : ''}
+             <div class="card-actions">
+               <button data-act="grow" ${short > 0 ? '' : 'disabled'}>素材を育てる</button>
+               <button data-act="fuse" class="primary" ${ok ? '' : 'disabled'}>合成する</button>
+               <button data-act="all">育てて合成</button>
+               <button data-act="detail">個別</button>
+             </div>`}`;
+
+    row.querySelector('[data-act="detail"]').addEventListener('click', () => this.openGroup(g));
+
+    const grow = row.querySelector('[data-act="grow"]');
+    if (grow) {
+      grow.addEventListener('click', () => {
+        this.growMaterials(g, need);
+        this.renderForge(); this.rebuild(); this.changed();
+      });
+    }
+    const fb = row.querySelector('[data-act="fuse"]');
+    if (fb) {
+      fb.addEventListener('click', () => {
+        const made = fuse(this.state, g.name, g.rarity);
+        if (!made) return;
+        this.toast(`${made.name} が ${made.rarity} になった`);
+        this.renderForge(); this.rebuild(); this.changed();
+      });
+    }
+    const all = row.querySelector('[data-act="all"]');
+    if (all) {
+      all.addEventListener('click', () => {
+        this.growMaterials(g, need);
+        const made = fuse(this.state, g.name, g.rarity);
+        if (made) this.toast(`${made.name} が ${made.rarity} になった`);
+        else this.toast('ギルが足りない');
+        this.renderForge(); this.rebuild(); this.changed();
+      });
+    }
+    return row;
+  }
+
+  /** 合成に使う本数ぶんだけ、上限レベルまで育てる */
+  growMaterials(g, need) {
+    const mats = [...g.items].sort((a, b) => b.level - a.level).slice(0, need);
+    for (const m of mats) levelUpMax(this.state, m.id);
   }
 
   // ============================================================ 店
@@ -450,3 +595,5 @@ export class Screens {
     });
   }
 }
+
+export { PARTY_SIZE };

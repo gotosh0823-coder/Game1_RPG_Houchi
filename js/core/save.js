@@ -8,6 +8,7 @@ import { JOB_IDS, LEVEL_CAP } from '../data/jobs.js';
 import { expToNext } from './stats.js';
 import { newStats } from './achievements.js';
 import { newInventory, grantStarterSet } from './inventory.js';
+import { newParty, newChar, newJobRecord, jobData, PARTY_SIZE, DEFAULT_JOBS } from './party.js';
 import {
   goldPerBattle, expPerBattle, BATTLES_PER_STAGE, PROOF_DROP_STAGE,
 } from '../data/enemies.js';
@@ -16,7 +17,10 @@ const KEY = 'houchi_rpg_v0';
 // 2 … 装備を所持品制（レア度＋レベル）に作り替えた。
 //     到達ステージから装備を自動決定していた v1 とは互換性が無い。
 // 3 … 遺物（全滅で入手）と、レア度ごとの装備入手カウントを追加。
-const SAVE_VERSION = 3;
+// 4 … ジョブレベルをジョブ共有からキャラクターごとに変えた。
+//     state.jobs / state.party を廃止し、state.chars（4人）に一本化。
+//     装備の割り当ても「ジョブID → 部位」から「キャラ番号 → 部位」になった。
+const SAVE_VERSION = 4;
 
 export const OFFLINE_RATE = 0.5;         // 効率50%
 export const OFFLINE_CAP_HOURS = 12;     // 上限12時間
@@ -39,10 +43,6 @@ export const ALEX_DAILY_LOGIN = 100;     // B
 export const ALEX_OFFLINE_CAP = 100;     // C（12時間ぶんの上限）
 
 export function newSave() {
-  const jobs = {};
-  for (const id of JOB_IDS) {
-    jobs[id] = { level: 1, exp: 0, limitBreaks: 0, proofs: 0 };
-  }
   const state = {
     version: SAVE_VERSION,
     stage: 1,
@@ -55,10 +55,9 @@ export function newSave() {
     stats: newStats(),          // 実績の計測値
     achievements: {},           // 取得済みの実績（キー → 1）
     unlockedJobs: [...JOB_IDS],
-    jobs,
-    inv: newInventory(),        // 所持装備・装備中・自動売却
+    chars: newParty(),          // 4人。ジョブレベルはキャラごとに持つ
+    inv: newInventory(),        // 所持装備・装備中（キャラ番号ごと）・自動売却
     relics: {},                 // 入手済みの遺物（遺物ID → 1）
-    party: ['war', 'mnk', 'whm', 'blm'],
     lastSeen: Date.now(),
     settings: { sound: false },
   };
@@ -112,19 +111,46 @@ function migrate(data) {
     out.inv = { ...newInventory(), ...data.inv };
     out.inv.equipped = data.inv.equipped || {};
   }
-  out.jobs = { ...base.jobs, ...(data.jobs || {}) };
-  for (const id of JOB_IDS) {
-    out.jobs[id] = { ...base.jobs[id], ...(out.jobs[id] || {}) };
-  }
+  out.chars = migrateChars(data, base);
+  delete out.jobs;
+  delete out.party;
   out.stats = { ...base.stats, ...(data.stats || {}) };
   out.stats.firstRarity = { ...(data.stats?.firstRarity || {}) };
   out.stats.job4clear = { ...(data.stats?.job4clear || {}) };
   out.achievements = { ...(data.achievements || {}) };
   out.relics = { ...(data.relics || {}) };
   out.stats.rarityCount = { ...base.stats.rarityCount, ...(data.stats?.rarityCount || {}) };
-  if (!Array.isArray(out.party) || out.party.length !== 4) out.party = base.party;
-  out.party = out.party.map(id => (JOB_IDS.includes(id) ? id : 'war'));
   return out;
+}
+
+/**
+ * v3以前はジョブ共有のレベル（data.jobs）と編成（data.party）だった。
+ * 「そのジョブを使っていた枠のキャラが、そのレベルを引き継ぐ」形に読み替える。
+ * 同じジョブが2枠に入っていた場合は、両方が同じレベルから始まる。
+ */
+function migrateChars(data, base) {
+  if (Array.isArray(data.chars) && data.chars.length === PARTY_SIZE) {
+    return data.chars.map((c, i) => {
+      const fresh = newChar(i, c.job && JOB_IDS.includes(c.job) ? c.job : DEFAULT_JOBS[i]);
+      fresh.name = c.name || fresh.name;
+      for (const id of JOB_IDS) {
+        fresh.jobs[id] = { ...newJobRecord(), ...(c.jobs?.[id] || {}) };
+      }
+      return fresh;
+    });
+  }
+
+  const oldParty = Array.isArray(data.party) && data.party.length === PARTY_SIZE
+    ? data.party.map(id => (JOB_IDS.includes(id) ? id : DEFAULT_JOBS[0]))
+    : DEFAULT_JOBS;
+
+  return oldParty.map((job, i) => {
+    const c = newChar(i, job);
+    for (const id of JOB_IDS) {
+      if (data.jobs?.[id]) c.jobs[id] = { ...newJobRecord(), ...data.jobs[id] };
+    }
+    return c;
+  });
 }
 
 /**
@@ -151,9 +177,10 @@ export function applyOffline(state) {
   state.stats.totalGold += gold;
   state.alexandrite = (state.alexandrite ?? 0) + alex;
 
+  // EXPはキャラごとに入る（同じジョブを2人で使っていても、それぞれ別に育つ）
   const levelups = [];
-  for (const id of [...new Set(state.party)]) {
-    const jd = state.jobs[id];
+  state.chars.forEach((c, ci) => {
+    const jd = jobData(state, ci);
     const before = jd.level;
     jd.exp += expGain * (1 + 0.5 * jd.limitBreaks);
     for (;;) {
@@ -162,8 +189,8 @@ export function applyOffline(state) {
       jd.exp -= need;
       jd.level++;
     }
-    if (jd.level > before) levelups.push({ jobId: id, from: before, to: jd.level });
-  }
+    if (jd.level > before) levelups.push({ ci, jobId: c.job, from: before, to: jd.level });
+  });
 
   return { seconds: capped, gold, exp: expGain, alex, levelups, capped: elapsed > capped };
 }
@@ -194,8 +221,8 @@ export function claimDailyLogin(state) {
 
 const LB_GOLD_STAGES = 15;
 
-export function limitBreakCost(state, jobId) {
-  const n = (state.jobs[jobId]?.limitBreaks ?? 0) + 1;
+export function limitBreakCost(state, ci) {
+  const n = jobData(state, ci).limitBreaks + 1;
   const perStage = goldPerBattle(state.maxStage) * BATTLES_PER_STAGE;
   return {
     gold: Math.floor(perStage * LB_GOLD_STAGES * Math.pow(2, n - 1)),
@@ -203,17 +230,17 @@ export function limitBreakCost(state, jobId) {
   };
 }
 
-export function canLimitBreak(state, jobId) {
-  const jd = state.jobs[jobId];
+export function canLimitBreak(state, ci) {
+  const jd = jobData(state, ci);
   if (jd.level < LEVEL_CAP) return false;
-  const cost = limitBreakCost(state, jobId);
+  const cost = limitBreakCost(state, ci);
   return state.gold >= cost.gold && jd.proofs >= cost.proofs;
 }
 
-export function doLimitBreak(state, jobId) {
-  if (!canLimitBreak(state, jobId)) return false;
-  const jd = state.jobs[jobId];
-  const cost = limitBreakCost(state, jobId);
+export function doLimitBreak(state, ci) {
+  if (!canLimitBreak(state, ci)) return false;
+  const jd = jobData(state, ci);
+  const cost = limitBreakCost(state, ci);
   state.gold -= cost.gold;
   jd.proofs -= cost.proofs;
   jd.limitBreaks++;

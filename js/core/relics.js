@@ -57,18 +57,19 @@ export function takeRelic(state, id) {
   if (!state.relics) state.relics = {};
   state.relics[id] = 1;
 
-  // 代償：編成中のジョブのレベルが RELIC_LEVEL_COST 下がる（最低1）。
-  // 同じジョブを複数枠に入れていても、ジョブ単位で1回だけ下げる。
+  // 代償：4人それぞれの、いま就いているジョブのレベルが
+  // RELIC_LEVEL_COST 下がる（最低1）。
+  // レベルはキャラごとに持っているので、同じジョブが2人いても2人ぶん下がる。
   const levelDrops = [];
-  for (const jobId of new Set(state.party)) {
-    const jd = state.jobs[jobId];
+  state.chars.forEach((c, ci) => {
+    const jd = c.jobs[c.job];
     const from = jd.level;
     const to = Math.max(1, from - RELIC_LEVEL_COST);
-    if (to === from) continue;
+    if (to === from) return;
     jd.level = to;
     jd.exp = 0;
-    levelDrops.push({ jobId, from, to });
-  }
+    levelDrops.push({ ci, jobId: c.job, from, to });
+  });
   return { relic, levelDrops };
 }
 

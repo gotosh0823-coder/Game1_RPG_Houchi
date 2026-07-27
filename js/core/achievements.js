@@ -4,7 +4,8 @@
 // 通知（トースト）が出る。受け取り操作は無い。
 
 import { ACHIEVEMENTS } from '../data/achievements.js';
-import { JOB_IDS, LEVEL_CAP } from '../data/jobs.js';
+import { LEVEL_CAP } from '../data/jobs.js';
+import { totalLimitBreaks, maxJobLevel } from './party.js';
 
 /** セーブに持たせる計測値の初期値 */
 export function newStats() {
@@ -33,12 +34,9 @@ export function newStats() {
  */
 function metricValue(state, metric) {
   if (metric === 'maxStage') return state.maxStage;
-  if (metric === 'limitBreaks') {
-    return JOB_IDS.reduce((sum, id) => sum + (state.jobs[id]?.limitBreaks ?? 0), 0);
-  }
-  if (metric.startsWith('jobLevel.')) {
-    return state.jobs[metric.slice(9)]?.level ?? 0;
-  }
+  // 限界突破は全キャラ・全ジョブの合計、ジョブレベルは全キャラ中の最高
+  if (metric === 'limitBreaks') return totalLimitBreaks(state);
+  if (metric.startsWith('jobLevel.')) return maxJobLevel(state, metric.slice(9));
   if (metric.startsWith('firstRarity.')) {
     return state.stats.firstRarity?.[metric.slice(12)] ?? 0;
   }

@@ -7,6 +7,7 @@ import { JOBS, GRADE, LEVEL_CAP } from '../data/jobs.js';
 import { equippedStats, equippedEffects } from './inventory.js';
 import { bonuses } from './achievements.js';
 import { relicBonuses } from './relics.js';
+import { charJob, jobData } from './party.js';
 
 // 基礎値。仕様の初期案（HP30 / MP0）ではLv1が脆すぎて1ステージ目のボスで
 // 詰まるため、実際に動かして調整した値を入れてある。
@@ -69,14 +70,15 @@ const STAT_KEYS = ['hp', 'mp', 'str', 'dex', 'vit', 'agi', 'int', 'mnd', 'chr'];
  * レベルぶん（素のステータス）と装備ぶんを合算して返す。
  * atk は武器の攻撃力で、ステータスとは別枠。
  *
- * @param {object} state セーブデータ（所持装備・実績を参照する）
- * @param {string} jobId
+ * @param {object} state セーブデータ
+ * @param {number} ci    キャラクター番号（0〜3）
  */
-export function totalStats(state, jobId) {
-  const jd = state.jobs[jobId];
+export function totalStats(state, ci) {
+  const jobId = charJob(state, ci);
+  const jd = jobData(state, ci);
   const base = calcStats(jobId, jd.level, jd.limitBreaks);
-  const gear = equippedStats(state, jobId);
-  const effects = equippedEffects(state, jobId);
+  const gear = equippedStats(state, ci);
+  const effects = equippedEffects(state, ci);
 
   // 実績ボーナス（加算%と乗算）＋ 遺物（加算%のみ）
   const b = bonuses(state, jobId);

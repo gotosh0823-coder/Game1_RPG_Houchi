@@ -13,6 +13,7 @@ import { ALEX_PER_BOSS } from './save.js';
 import { rollDrops } from './inventory.js';
 import { bonuses } from './achievements.js';
 import { relicBonuses, rollRelicChoices } from './relics.js';
+import { jobData, partyJobs } from './party.js';
 
 export const TICK = 0.1;              // 秒
 export const BASE_DROP_RATE = 20;     // ボスの装備ドロップ率(%)。100%超は複数ドロップ
@@ -54,20 +55,22 @@ export class Battle {
     // 実績用：このステージ中にオートを使ったか／誰か倒れたか
     this.autoUsedThisStage = false;
     this.anyDownThisStage = false;
-    this.allies = this.save.party.map((jobId, slot) => this.makeAlly(jobId, slot));
+    this.allies = this.save.chars.map((c, slot) => this.makeAlly(slot));
     this.spawn();
     this.emit('stage', { stage });
   }
 
-  makeAlly(jobId, slot) {
+  makeAlly(slot) {
+    const c = this.save.chars[slot];
+    const jobId = c.job;
     const job = JOBS[jobId];
-    const jd = this.save.jobs[jobId];
+    const jd = jobData(this.save, slot);
     // 素のステータス＋いま着けている装備4本の補正
-    const st = totalStats(this.save, jobId);
+    const st = totalStats(this.save, slot);
     const maxHp = st.hp;
 
     return {
-      slot, jobId, job,
+      slot, jobId, job, name: c.name,
       level: jd.level,
       limitBreaks: jd.limitBreaks,
       stats: st,
@@ -531,7 +534,7 @@ export class Battle {
     this.save.stats.totalGold += gold;
 
     const exp = expPerBattle(stage) * METAL.expMultiplier;
-    for (const id of [...new Set(this.save.party)]) this.gainExp(id, exp);
+    for (let ci = 0; ci < this.save.chars.length; ci++) this.gainExp(ci, exp);
 
     this.emit('metal', { gold, exp });
   }
@@ -573,10 +576,12 @@ export class Battle {
       this.save.alexandrite = (this.save.alexandrite ?? 0) + ALEX_PER_BOSS;
     }
 
-    // EXP（ジョブ単位で1回だけ。重複編成でも倍にはならない）
-    const jobIds = [...new Set(this.save.party)];
-    for (const id of jobIds) {
-      this.gainExp(id, expPerBattle(stage) * (isBoss ? 5 : 1));
+    // EXPはキャラごとに入る。
+    // 以前はジョブ単位で1回だけ配っていたが（同じジョブを2枠に入れても
+    // 倍にならないように）、レベルをキャラごとに持つようにしたので
+    // そのままキャラの人数ぶん配ればよくなった。
+    for (let ci = 0; ci < this.save.chars.length; ci++) {
+      this.gainExp(ci, expPerBattle(stage) * (isBoss ? 5 : 1));
     }
 
     this.emit('win', { gold, isBoss });
@@ -607,25 +612,24 @@ export class Battle {
 
     // 同ジョブ4人でステージ50以上をクリア
     if (stage >= 50) {
-      const first = this.save.party[0];
-      if (this.save.party.every(id => id === first)) {
-        st.job4clear[first] = 1;
-      }
+      const jobs = partyJobs(this.save);
+      if (jobs.every(id => id === jobs[0])) st.job4clear[jobs[0]] = 1;
     }
   }
 
+  /** 「偉大な〇〇の証」。キャラごとに、いま就いているジョブの証が落ちる */
   rollProofs() {
-    const jobIds = [...new Set(this.save.party)];
-    for (const id of jobIds) {
+    this.save.chars.forEach((c, ci) => {
       if (Math.random() < PROOF_DROP_RATE) {
-        this.save.jobs[id].proofs++;
-        this.emit('proof', { jobId: id });
+        c.jobs[c.job].proofs++;
+        this.emit('proof', { ci, jobId: c.job });
       }
-    }
+    });
   }
 
-  gainExp(jobId, amount) {
-    const jd = this.save.jobs[jobId];
+  gainExp(ci, amount) {
+    const c = this.save.chars[ci];
+    const jd = jobData(this.save, ci);
     const mult = (1 + 0.5 * jd.limitBreaks)
       * (1 + (bonuses(this.save).expRateAdd + this.relic.expRateAdd) / 100);
     jd.exp += amount * mult;
@@ -635,7 +639,7 @@ export class Battle {
       if (!isFinite(need) || jd.exp < need) break;
       jd.exp -= need;
       jd.level++;
-      this.emit('levelup', { jobId, level: jd.level });
+      this.emit('levelup', { ci, jobId: c.job, level: jd.level });
     }
   }
 

@@ -166,6 +166,7 @@ html, body {
 }
 .ally .sprite { font-size: 16px; line-height: 1; }
 .ally .name { font-size: 12px; font-weight: 600; }
+.ally .job { font-size: 9px; color: var(--dim); }
 .ally .lv { font-size: 10px; color: var(--dim); margin-left: auto; }
 .ally .lb { color: var(--gold); }
 
@@ -514,6 +515,35 @@ button.danger { border-color: #6b3535; background: #2a1c1c; color: #e0968c; }
 .equip-slot.is-empty { border-style: dashed; }
 .pick { cursor: pointer; }
 .pick.is-active { border-color: var(--accent); }
+
+/* ---------- 強化・合成 ---------- */
+
+.forge-filter { display: flex; align-items: center; gap: 6px; }
+.forge-filter label { font-size: 11px; color: var(--dim); }
+.forge-filter select {
+  flex: 1 1 0;
+  padding: 5px 7px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+}
+
+.forge-row.is-ready { border-color: var(--gold); }
+.forge-levels { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 4px; }
+.forge-levels .chip {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  font-size: 10px;
+  color: var(--dim);
+  font-variant-numeric: tabular-nums;
+}
+.forge-levels .chip.max { color: var(--gold); border-color: var(--gold); }
+.kv b.ok { color: var(--hp); }
 
 /* ---------- 店 ---------- */
 

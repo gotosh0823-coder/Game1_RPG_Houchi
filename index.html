@@ -28,22 +28,44 @@
     </div>
   </main>
 
-  <!-- 編成：4枠にジョブを割り当てる。限界突破もここから -->
+  <!-- 編成：4人のキャラにジョブを割り当てる。限界突破もここから -->
   <main id="screen-party" class="screen">
     <h2 class="screen-title">編成</h2>
     <div id="party-slots" class="slot-row"></div>
-    <h3 class="sub-title">ジョブ<span class="hint">タップで選択中の枠に入れる（重複可）</span></h3>
+    <h3 class="sub-title">ジョブ<span class="hint">タップで選択中のキャラのジョブを変える</span></h3>
     <div id="party-jobs" class="card-list"></div>
     <div id="party-detail"></div>
   </main>
 
-  <!-- 装備：ジョブごとに4部位。強化・合成・売却もここ -->
+  <!-- 装備：キャラごとに4部位。強化・合成は別タブ -->
   <main id="screen-equip" class="screen">
     <h2 class="screen-title">装備</h2>
-    <div id="equip-tabs" class="tabs"></div>
-    <div id="equip-slots" class="card-list"></div>
-    <h3 class="sub-title">所持品<span class="hint" id="equip-count"></span></h3>
-    <div id="equip-bag" class="card-list"></div>
+    <div id="equip-mode" class="tabs">
+      <button class="tab is-active" data-mode="wear">着せ替え</button>
+      <button class="tab" data-mode="forge">強化・合成</button>
+    </div>
+
+    <div id="equip-wear">
+      <div id="equip-tabs" class="tabs"></div>
+      <div id="equip-slots" class="card-list"></div>
+      <h3 class="sub-title">所持品<span class="hint" id="equip-count"></span></h3>
+      <div id="equip-bag" class="card-list"></div>
+    </div>
+
+    <div id="equip-forge" class="hidden">
+      <p class="lead">
+        <b>強化</b>…ギルでレベルを上げる。レア度ごとに上限がある。<br>
+        <b>合成</b>…<b>同じ名称</b>の上限レベル品を重ねると1つ上のレア度になる（レベルは1に戻る）。<br>
+        N×2 → R、以降は×3。UR 1本に N 54本ぶん。
+      </p>
+      <div class="forge-filter">
+        <label>絞り込み</label>
+        <select id="forge-rarity"></select>
+        <select id="forge-slot"></select>
+      </div>
+      <div id="forge-summary" class="panel"></div>
+      <div id="forge-list" class="card-list"></div>
+    </div>
   </main>
 
   <!-- 店：モグボナンザ（ガチャ限定枠） -->

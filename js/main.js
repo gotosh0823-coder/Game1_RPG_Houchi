@@ -11,6 +11,8 @@ import {
   takeRelic, relicProgress, ownedRelics, RELIC_LEVEL_COST,
 } from './core/relics.js';
 import { RELICS } from './data/relics.js';
+import { setJob } from './core/party.js';
+import { unequipIncompatible } from './core/inventory.js';
 import { Renderer, shortNum } from './ui/render.js';
 import { Screens } from './ui/screens.js';
 
@@ -66,11 +68,11 @@ function onEvent(type, payload) {
       break;
 
     case 'levelup':
-      renderer.toast(`${JOBS[payload.jobId].name} が Lv${payload.level} に上がった`);
+      renderer.toast(`${state.chars[payload.ci].name}（${JOBS[payload.jobId].short}）Lv${payload.level}`);
       break;
 
     case 'proof':
-      renderer.toast(`「${proofName(payload.jobId)}」を入手`);
+      renderer.toast(`${state.chars[payload.ci].name}：「${proofName(payload.jobId)}」を入手`);
       break;
 
     case 'drop':
@@ -119,7 +121,7 @@ const ui = new Screens(state, {
   toast: (t) => renderer.toast(t),
   onChange: () => { renderAlexandrite(); save(state); },
   onPartyChange: () => {
-    battle.allies = state.party.map((jobId, slot) => battle.makeAlly(jobId, slot));
+    battle.allies = state.chars.map((c, slot) => battle.makeAlly(slot));
     renderer.buildAllies(battle.allies);
     renderer.buildAbilityBar(battle.allies, useAbility);
   },
@@ -260,12 +262,12 @@ let relicPending = false;
 
 function openRelicChoice(list) {
   relicPending = true;
-  const drops = [...new Set(state.party)]
-    .filter(id => state.jobs[id].level > 1)
-    .map(id => `${JOBS[id].short} Lv${state.jobs[id].level}→${Math.max(1, state.jobs[id].level - RELIC_LEVEL_COST)}`);
+  const drops = state.chars
+    .filter(c => c.jobs[c.job].level > 1)
+    .map(c => `${c.name} Lv${c.jobs[c.job].level}→${Math.max(1, c.jobs[c.job].level - RELIC_LEVEL_COST)}`);
   relicLead.textContent = drops.length > 0
-    ? `代償：編成中のジョブレベルが ${RELIC_LEVEL_COST} 下がる\n${drops.join(' / ')}`
-    : '代償：編成中のジョブレベルが下がる（いまは全員Lv1なので影響なし）';
+    ? `代償：4人のジョブレベルが ${RELIC_LEVEL_COST} 下がる\n${drops.join(' / ')}`
+    : `代償：4人のジョブレベルが ${RELIC_LEVEL_COST} 下がる（いまは全員Lv1なので影響なし）`;
 
   relicChoices.innerHTML = '';
   for (const r of list) {
@@ -279,7 +281,7 @@ function openRelicChoice(list) {
       if (!got) return;
       renderer.toast(`遺物「${got.relic.name}」を持ち帰った`);
       for (const d of got.levelDrops) {
-        renderer.toast(`${JOBS[d.jobId].name} Lv${d.from} → Lv${d.to}`);
+        renderer.toast(`${state.chars[d.ci].name} Lv${d.from} → Lv${d.to}`);
       }
       // レベルと遺物の効果が変わるので、ステージを組み直す
       battle.startStage(state.stage);
@@ -290,11 +292,12 @@ function openRelicChoice(list) {
     relicChoices.appendChild(b);
   }
 
-  // 見送る。レベルが低いうちに払うと「全滅 → レベル低下 → また全滅」の
-  // 悪循環に入るので、払えないときは断れないと成立しない
+  // 見送りも一応残してあるが、遺物は「周回の目的」であり実質必須。
+  // 実測でも、受け取ると到達ステージ93〜105、受け取らないと65〜69で止まる。
+  // 壁で全滅を繰り返して先に取り切ってから育て直すのがいちばん早い。
   const skip = document.createElement('button');
   skip.className = 'relic-skip';
-  skip.textContent = '見送る（代償を払わない）';
+  skip.textContent = '今回は見送る';
   skip.addEventListener('click', () => {
     relicModal.classList.add('hidden');
     relicPending = false;
@@ -333,7 +336,10 @@ function renderRelics() {
   const lead = document.createElement('p');
   lead.className = 'lead';
   lead.innerHTML = `遺物は<b>オンライン中に全滅したときだけ</b>手に入る。`
-    + `その帯の未入手から3つ提示され、ひとつ選ぶと編成中のジョブレベルが ${RELIC_LEVEL_COST} 下がる。<br>`
+    + `その帯の未入手から3つ提示され、ひとつ選ぶと4人のジョブレベルが ${RELIC_LEVEL_COST} 下がる。<br>`
+    + `<b>代償を払ってでも集めるのが正解。</b>`
+    + `集めた場合はステージ93〜105まで進めるが、集めないと65前後で止まる（実測）。<br>`
+    + `壁で全滅を繰り返して先に取り切り、そのあとレベルを上げ直すのがいちばん早い。<br>`
     + `効果は帯をまたいで同じ。10種を集めきった帯では、以降なにも起きない。`;
   relicListEl.appendChild(lead);
 
@@ -419,7 +425,7 @@ if (offline) {
   ];
   if (offline.alex > 0) lines.push(`アレキサンドライト +${offline.alex}`);
   for (const lu of offline.levelups) {
-    lines.push(`${JOBS[lu.jobId].name} Lv${lu.from} → Lv${lu.to}`);
+    lines.push(`${state.chars[lu.ci].name} Lv${lu.from} → Lv${lu.to}`);
   }
   text.textContent = lines.join('\n');
   modal.classList.remove('hidden');
@@ -433,14 +439,20 @@ if (offline) {
 window.game = {
   state,
   battle,
-  canLimitBreak: (jobId) => canLimitBreak(state, jobId),
-  limitBreak: (jobId) => {
-    const ok = doLimitBreak(state, jobId);
+  canLimitBreak: (ci) => canLimitBreak(state, ci),
+  limitBreak: (ci) => {
+    const ok = doLimitBreak(state, ci);
     if (ok) {
-      renderer.toast(`${JOBS[jobId].name} 限界突破！`);
+      renderer.toast(`${state.chars[ci].name} 限界突破！`);
       battle.startStage(state.stage);
     }
     return ok;
+  },
+  setJob: (ci, jobId) => {
+    setJob(state, ci, jobId, unequipIncompatible);
+    battle.startStage(state.stage);
+    renderer.buildAllies(battle.allies);
+    renderer.buildAbilityBar(battle.allies, useAbility);
   },
   // バランス確認用
   METAL,

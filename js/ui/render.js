@@ -73,7 +73,8 @@ export class Renderer {
       el.innerHTML = `
         <div class="head">
           <span class="sprite">${a.job.icon}</span>
-          <span class="name">${a.job.short}</span>
+          <span class="name">${a.name ?? a.job.short}</span>
+          <span class="job">${a.job.short}</span>
           <span class="lv">Lv${a.level}${a.limitBreaks ? ` <span class="lb">${'★'.repeat(Math.min(5, a.limitBreaks))}</span>` : ''}</span>
         </div>
         <div class="bar"><i></i></div>`;
