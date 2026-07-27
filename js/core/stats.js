@@ -6,6 +6,7 @@
 import { JOBS, GRADE, LEVEL_CAP } from '../data/jobs.js';
 import { equippedStats, equippedEffects } from './inventory.js';
 import { bonuses } from './achievements.js';
+import { relicBonuses } from './relics.js';
 
 // 基礎値。仕様の初期案（HP30 / MP0）ではLv1が脆すぎて1ステージ目のボスで
 // 詰まるため、実際に動かして調整した値を入れてある。
@@ -72,20 +73,21 @@ export function totalStats(state, jobId) {
   const gear = equippedStats(state, jobId);
   const effects = equippedEffects(state, jobId);
 
-  // 実績ボーナス（加算%と乗算）
+  // 実績ボーナス（加算%と乗算）＋ 遺物（加算%のみ）
   const b = bonuses(state, jobId);
-  const allMul = (1 + b.allStatsAdd / 100) * b.allStatsMul;
+  const r = relicBonuses(state);
+  const allMul = (1 + (b.allStatsAdd + r.allStatsAdd) / 100) * b.allStatsMul;
 
   const out = {
-    atk: gear.atk * allMul * (1 + b.atkAdd / 100),
+    atk: gear.atk * allMul * (1 + (b.atkAdd + r.atkAdd) / 100),
     effects,
   };
   for (const k of STAT_KEYS) {
     // MPを持たないジョブには装備のMPも乗せない
     if (k === 'mp' && base.mp === 0) { out.mp = 0; continue; }
     let v = (base[k] + (gear[k] || 0)) * allMul;
-    if (k === 'hp') v *= 1 + b.hpAdd / 100;
-    if (k === 'vit') v *= 1 + b.vitAdd / 100;
+    if (k === 'hp') v *= 1 + (b.hpAdd + r.hpAdd) / 100;
+    if (k === 'vit') v *= 1 + (b.vitAdd + r.vitAdd) / 100;
     out[k] = Math.floor(v);
   }
   return out;

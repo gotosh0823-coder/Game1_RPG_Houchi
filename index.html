@@ -58,8 +58,13 @@
   </main>
 
   <main id="screen-achievements" class="screen">
-    <h2 class="screen-title">実績</h2>
+    <h2 class="screen-title">実績・遺物</h2>
+    <div id="record-tabs" class="tabs">
+      <button class="tab is-active" data-tab="ach">実績</button>
+      <button class="tab" data-tab="relic">遺物<span id="relic-count"></span></button>
+    </div>
     <div id="ach-list"></div>
+    <div id="relic-list" class="hidden"></div>
   </main>
 
   <main id="screen-settings" class="screen">
@@ -98,6 +103,15 @@
     <h2>留守中の成果</h2>
     <p id="offline-text"></p>
     <button id="offline-close">受け取る</button>
+  </div>
+</div>
+
+<!-- 全滅時の遺物選択。開いているあいだは戦闘を止める -->
+<div id="relic-modal" class="modal hidden">
+  <div class="modal-box relic-box">
+    <h2>全滅　―　遺物をひとつ持ち帰る</h2>
+    <p id="relic-lead"></p>
+    <div id="relic-choices"></div>
   </div>
 </div>
 

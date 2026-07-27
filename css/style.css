@@ -571,6 +571,8 @@ button.danger { border-color: #6b3535; background: #2a1c1c; color: #e0968c; }
   font-size: 12px;
 }
 
+.hidden { display: none !important; }
+
 /* ---------- 下から出るシート ---------- */
 
 .sheet {
@@ -621,6 +623,69 @@ button.danger { border-color: #6b3535; background: #2a1c1c; color: #e0968c; }
   flex-direction: column;
   gap: 7px;
 }
+
+/* ---------- 遺物 ---------- */
+
+.relic-box { max-width: 340px; text-align: left; }
+.relic-box h2 { text-align: center; }
+#relic-lead {
+  white-space: pre-line;
+  text-align: center;
+  font-size: 11px;
+  color: #e0a86c;
+  line-height: 1.7;
+  margin-bottom: 12px;
+}
+#relic-choices { display: flex; flex-direction: column; gap: 7px; }
+
+.relic-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.relic-choice:hover, .relic-choice:active { border-color: var(--gold); }
+.relic-choice .nm { font-size: 13px; font-weight: 700; color: var(--gold); }
+.relic-choice .ef { font-size: 11px; color: var(--dim); }
+
+.relic-skip {
+  margin: 4px 0 0;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+#relic-list { display: flex; flex-direction: column; gap: 8px; }
+#relic-list .lead b { color: var(--text); }
+
+.relic-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: #6a6d80;
+  border-top: 1px solid rgba(255,255,255,.04);
+}
+.relic-row .nm { flex: 1 1 auto; min-width: 0; }
+.relic-row .ef { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.relic-row.owned { color: var(--text); }
+.relic-row.owned .nm { font-weight: 600; color: var(--gold); }
+.relic-row.owned .ef { color: var(--dim); }
 
 /* ---------- モーダル ---------- */
 

@@ -137,7 +137,7 @@ export class Renderer {
       refs.state.textContent = !a.alive ? '戦闘不能'
         : ready ? 'READY'
           : `${Math.ceil(a.recastLeft)}s`;
-      const p = ready ? 100 : (1 - a.recastLeft / a.job.ability.recast) * 100;
+      const p = ready ? 100 : (1 - a.recastLeft / (a.recastFull || a.job.ability.recast)) * 100;
       refs.fill.style.width = `${p}%`;
     });
 

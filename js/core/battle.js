@@ -12,6 +12,7 @@ import {
 import { ALEX_PER_BOSS } from './save.js';
 import { rollDrops } from './inventory.js';
 import { bonuses } from './achievements.js';
+import { relicBonuses, rollRelicChoices } from './relics.js';
 
 export const TICK = 0.1;              // 秒
 export const BASE_DROP_RATE = 20;     // ボスの装備ドロップ率(%)。100%超は複数ドロップ
@@ -48,6 +49,8 @@ export class Battle {
   startStage(stage) {
     this.save.stage = stage;
     this.battleIndex = 0;
+    // 遺物の効果はステージ中に変わらないので、ここで1回だけ集計しておく
+    this.relic = relicBonuses(this.save);
     // 実績用：このステージ中にオートを使ったか／誰か倒れたか
     this.autoUsedThisStage = false;
     this.anyDownThisStage = false;
@@ -74,6 +77,7 @@ export class Battle {
       gauge: Math.random() * 0.2,
       tp: 0,
       recastLeft: 0,          // ステージ開始時は全アビが使える
+      recastFull: job.ability.recast,   // ゲージ表示用（遺物で短縮された後の値）
       buffs: { dmgMul: 0, speedMul: 0, invuln: 0 },
       hate: 0,
       alive: true,
@@ -102,7 +106,8 @@ export class Battle {
       const cut = PASSIVE.dualWield(a.level) / 100;
       sp = sp / (1 - Math.min(0.6, cut));
     }
-    sp *= 1 + (a.eff.speed ?? 0) / 100;  // 装備：攻撃間隔短縮／行動速度
+    // 装備（攻撃間隔短縮／行動速度）と遺物
+    sp *= 1 + ((a.eff.speed ?? 0) + this.relic.speedAdd) / 100;
     if (a.buffs.speedMul > 0) sp *= 3;   // 百烈拳
     return sp;
   }
@@ -330,7 +335,8 @@ export class Battle {
    */
   incomingDamage(rawAtk, target) {
     const raw = rawAtk * rawAtk / (rawAtk + target.stats.vit * VIT_DEFENSE);
-    return raw * (1 - Math.min(0.8, (target.eff.damageCut ?? 0) / 100));
+    const cut = (target.eff.damageCut ?? 0) + this.relic.damageCut;
+    return raw * (1 - Math.min(0.8, cut / 100));
   }
 
   // --- 敵の行動 ---
@@ -454,7 +460,8 @@ export class Battle {
     if (!this.canUse(slot)) return false;
     const a = this.allies[slot];
     const ab = a.job.ability;
-    a.recastLeft = ab.recast;
+    a.recastLeft = ab.recast * (1 - Math.min(0.8, this.relic.recastCut / 100));
+    a.recastFull = a.recastLeft;
 
     switch (ab.id) {
       case 'mighty_strike':
@@ -545,7 +552,7 @@ export class Battle {
    */
   dropRate() {
     let rate = BASE_DROP_RATE + this.treasureBonus() * 0.5;
-    rate += bonuses(this.save).dropRateAdd;
+    rate += bonuses(this.save).dropRateAdd + this.relic.dropRateAdd;
     for (const a of this.allies) rate += a.eff.dropRate ?? 0;
     return rate;
   }
@@ -557,7 +564,7 @@ export class Battle {
     // ゴールド（トレジャーハンターは編成に入っている枠ぶん加算）
     const gold = goldPerBattle(stage) * (isBoss ? 5 : 1)
       * (1 + this.treasureBonus() / 100)
-      * (1 + bonuses(this.save).goldRateAdd / 100);
+      * (1 + (bonuses(this.save).goldRateAdd + this.relic.goldRateAdd) / 100);
     this.save.gold += gold;
     this.save.stats.totalGold += gold;
     if (isBoss) {
@@ -619,7 +626,8 @@ export class Battle {
 
   gainExp(jobId, amount) {
     const jd = this.save.jobs[jobId];
-    const mult = (1 + 0.5 * jd.limitBreaks) * (1 + bonuses(this.save).expRateAdd / 100);
+    const mult = (1 + 0.5 * jd.limitBreaks)
+      * (1 + (bonuses(this.save).expRateAdd + this.relic.expRateAdd) / 100);
     jd.exp += amount * mult;
 
     for (;;) {
@@ -633,7 +641,10 @@ export class Battle {
 
   wipe() {
     this.save.stats.wipes++;
-    this.emit('wipe', { stage: this.save.stage });
+    // 遺物はオンラインの全滅でのみ手に入る。
+    // その帯を集めきっていれば空配列になり、何も起きない
+    const relics = rollRelicChoices(this.save, this.save.stage);
+    this.emit('wipe', { stage: this.save.stage, relics });
     this.startStage(this.save.stage);
   }
 }

@@ -15,7 +15,8 @@ import {
 const KEY = 'houchi_rpg_v0';
 // 2 … 装備を所持品制（レア度＋レベル）に作り替えた。
 //     到達ステージから装備を自動決定していた v1 とは互換性が無い。
-const SAVE_VERSION = 2;
+// 3 … 遺物（全滅で入手）と、レア度ごとの装備入手カウントを追加。
+const SAVE_VERSION = 3;
 
 export const OFFLINE_RATE = 0.5;         // 効率50%
 export const OFFLINE_CAP_HOURS = 12;     // 上限12時間
@@ -56,6 +57,7 @@ export function newSave() {
     unlockedJobs: [...JOB_IDS],
     jobs,
     inv: newInventory(),        // 所持装備・装備中・自動売却
+    relics: {},                 // 入手済みの遺物（遺物ID → 1）
     party: ['war', 'mnk', 'whm', 'blm'],
     lastSeen: Date.now(),
     settings: { sound: false },
@@ -118,6 +120,8 @@ function migrate(data) {
   out.stats.firstRarity = { ...(data.stats?.firstRarity || {}) };
   out.stats.job4clear = { ...(data.stats?.job4clear || {}) };
   out.achievements = { ...(data.achievements || {}) };
+  out.relics = { ...(data.relics || {}) };
+  out.stats.rarityCount = { ...base.stats.rarityCount, ...(data.stats?.rarityCount || {}) };
   if (!Array.isArray(out.party) || out.party.length !== 4) out.party = base.party;
   out.party = out.party.map(id => (JOB_IDS.includes(id) ? id : 'war'));
   return out;

@@ -7,6 +7,10 @@ import { load, save, applyOffline, wipeSave, canLimitBreak, doLimitBreak, claimD
 import { JOBS, proofName } from './data/jobs.js';
 import { METAL } from './data/enemies.js';
 import { claim, progress } from './core/achievements.js';
+import {
+  takeRelic, relicProgress, ownedRelics, RELIC_LEVEL_COST,
+} from './core/relics.js';
+import { RELICS } from './data/relics.js';
 import { Renderer, shortNum } from './ui/render.js';
 import { Screens } from './ui/screens.js';
 
@@ -77,6 +81,8 @@ function onEvent(type, payload) {
 
     case 'wipe':
       renderer.toast(`全滅　ステージ ${payload.stage} の最初から`);
+      // オンラインの全滅でのみ遺物が出る。その帯を集めきっていれば何も起きない
+      if (payload.relics.length > 0) openRelicChoice(payload.relics);
       break;
   }
 }
@@ -143,7 +149,7 @@ function showScreen(name) {
   // 戦闘以外の画面では、通知が見出しや操作の上に居座らないよう下へ寄せる
   renderer.toasts.classList.toggle('low', name !== 'battle');
 
-  if (name === 'achievements') renderAchievements();
+  if (name === 'achievements') renderRecord();
   if (name === 'party') ui.renderParty();
   if (name === 'equip') ui.renderEquip();
   if (name === 'shop') { ui.renderShop(); }
@@ -192,7 +198,7 @@ function checkAchievements() {
   if (unlocked.length > 0) {
     renderAlexandrite();
     // ステータス補正が変わるので、次のステージから反映される
-    if (screens.achievements.classList.contains('is-active')) renderAchievements();
+    if (screens.achievements.classList.contains('is-active')) renderRecord();
   }
 }
 
@@ -218,8 +224,7 @@ function renderAchievements() {
 
 // --- デバッグ用：アレキサンドライト追加（左上） ---
 //
-// ガチャは未実装。通貨だけ先に持たせてある。
-// デバッグ環境なので初期200個＋このボタンで200個ずつ足せる。
+// 店（モグボナンザ）で使う。デバッグ環境なので初期200個＋このボタンで200個ずつ足せる。
 
 const ALEX_DEBUG_ADD = 200;
 const alexBtn = document.getElementById('alex-add');
@@ -243,6 +248,113 @@ if (dailyAlex > 0) {
   setTimeout(() => renderer.toast(`ログインボーナス アレキサンドライト +${dailyAlex}`), 400);
 }
 
+// --- 遺物（全滅時） ---
+//
+// 選択中はゲームを止める。放置中に全滅しても、戻ってくるまで待ってくれる。
+// 受け取ると編成中のジョブのレベルが下がるので、代償を見せてから選ばせる。
+
+const relicModal = document.getElementById('relic-modal');
+const relicLead = document.getElementById('relic-lead');
+const relicChoices = document.getElementById('relic-choices');
+let relicPending = false;
+
+function openRelicChoice(list) {
+  relicPending = true;
+  const drops = [...new Set(state.party)]
+    .filter(id => state.jobs[id].level > 1)
+    .map(id => `${JOBS[id].short} Lv${state.jobs[id].level}→${Math.max(1, state.jobs[id].level - RELIC_LEVEL_COST)}`);
+  relicLead.textContent = drops.length > 0
+    ? `代償：編成中のジョブレベルが ${RELIC_LEVEL_COST} 下がる\n${drops.join(' / ')}`
+    : '代償：編成中のジョブレベルが下がる（いまは全員Lv1なので影響なし）';
+
+  relicChoices.innerHTML = '';
+  for (const r of list) {
+    const b = document.createElement('button');
+    b.className = 'relic-choice';
+    b.innerHTML = `<span class="nm">${r.name}</span><span class="ef">${r.desc}</span>`;
+    b.addEventListener('click', () => {
+      const got = takeRelic(state, r.id);
+      relicModal.classList.add('hidden');
+      relicPending = false;
+      if (!got) return;
+      renderer.toast(`遺物「${got.relic.name}」を持ち帰った`);
+      for (const d of got.levelDrops) {
+        renderer.toast(`${JOBS[d.jobId].name} Lv${d.from} → Lv${d.to}`);
+      }
+      // レベルと遺物の効果が変わるので、ステージを組み直す
+      battle.startStage(state.stage);
+      renderer.buildAllies(battle.allies);
+      renderer.buildAbilityBar(battle.allies, useAbility);
+      save(state);
+    });
+    relicChoices.appendChild(b);
+  }
+
+  // 見送る。レベルが低いうちに払うと「全滅 → レベル低下 → また全滅」の
+  // 悪循環に入るので、払えないときは断れないと成立しない
+  const skip = document.createElement('button');
+  skip.className = 'relic-skip';
+  skip.textContent = '見送る（代償を払わない）';
+  skip.addEventListener('click', () => {
+    relicModal.classList.add('hidden');
+    relicPending = false;
+  });
+  relicChoices.appendChild(skip);
+
+  relicModal.classList.remove('hidden');
+}
+
+// --- 実績・遺物の画面切り替え ---
+
+const relicListEl = document.getElementById('relic-list');
+const relicCountEl = document.getElementById('relic-count');
+let recordTab = 'ach';
+
+for (const btn of document.querySelectorAll('#record-tabs .tab')) {
+  btn.addEventListener('click', () => {
+    recordTab = btn.dataset.tab;
+    for (const b of document.querySelectorAll('#record-tabs .tab')) {
+      b.classList.toggle('is-active', b === btn);
+    }
+    renderRecord();
+  });
+}
+
+function renderRecord() {
+  relicCountEl.textContent = ` ${ownedRelics(state).length}/${RELICS.length}`;
+  achList.classList.toggle('hidden', recordTab !== 'ach');
+  relicListEl.classList.toggle('hidden', recordTab !== 'relic');
+  if (recordTab === 'ach') renderAchievements();
+  else renderRelics();
+}
+
+function renderRelics() {
+  relicListEl.innerHTML = '';
+  const lead = document.createElement('p');
+  lead.className = 'lead';
+  lead.innerHTML = `遺物は<b>オンライン中に全滅したときだけ</b>手に入る。`
+    + `その帯の未入手から3つ提示され、ひとつ選ぶと編成中のジョブレベルが ${RELIC_LEVEL_COST} 下がる。<br>`
+    + `効果は帯をまたいで同じ。10種を集めきった帯では、以降なにも起きない。`;
+  relicListEl.appendChild(lead);
+
+  for (const g of relicProgress(state)) {
+    const owned = g.items.filter(i => i.owned).length;
+    const box = document.createElement('div');
+    box.className = 'panel';
+    box.innerHTML = `
+      <div class="card-head">
+        <span class="nm">ステージ ${g.from}〜${g.to}</span>
+        <span class="tag${owned === g.items.length ? ' in' : ''}">${owned} / ${g.items.length}</span>
+      </div>
+      ${g.items.map(i => `
+        <div class="relic-row${i.owned ? ' owned' : ''}">
+          <span class="nm">${i.owned ? i.name : '？？？'}</span>
+          <span class="ef">${i.desc}</span>
+        </div>`).join('')}`;
+    relicListEl.appendChild(box);
+  }
+}
+
 // --- ゲームループ ---
 //
 // 実時間ベースで進める。タブが非アクティブでも復帰時にまとめて追いつく。
@@ -256,6 +368,9 @@ function frame(now) {
   // 復帰時に一気に進みすぎないよう上限を掛ける（オフライン報酬とは別枠）
   dt = Math.min(dt, 1.0) * speed;
   acc += dt;
+
+  // 遺物の選択中は戦闘を止める（放置中に全滅しても戻るまで待つ）
+  if (relicPending) acc = 0;
 
   // 1フレームで進めるティック数の上限。倍速ぶんは余裕を持たせる
   const maxTicks = 20 * speed;

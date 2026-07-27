@@ -122,6 +122,21 @@ const FIRST_RARITY = [
   { rarity: 'UR', alex: 1000, value: 10 },
 ];
 
+// 累計入手数（レア度ごと）。
+// 1段階あたりの補正は「微量」に留めてある。効くのは積み上がった総量のほう。
+// 上のレア度ほど手に入りにくいので、刻みを細かく・1段階の重みを大きくしている。
+// 全50段階×5レア度を取り切ると 全ステータス +31%。
+//
+// カウントは入手した時点で増える（自動売却されたぶんも数える）。
+// 拾ったのに実績が進まないと、自動売却を入れた瞬間に損をすることになるため。
+const RARITY_COUNT = [
+  { rarity: 'N',   step: 25, tiers: 10, alex: 5,   value: 0.1 },
+  { rarity: 'R',   step: 10, tiers: 10, alex: 10,  value: 0.2 },
+  { rarity: 'SR',  step: 5,  tiers: 10, alex: 20,  value: 0.4 },
+  { rarity: 'SSR', step: 2,  tiers: 10, alex: 50,  value: 0.8 },
+  { rarity: 'UR',  step: 1,  tiers: 10, alex: 100, value: 1.6 },
+];
+
 /** すべての実績を、1段階＝1エントリに展開して返す */
 export function buildAchievements() {
   const out = [];
@@ -169,6 +184,23 @@ export function buildAchievements() {
       bonus: { type: 'allStats', value: r.value, form: 'add' },
     });
   });
+
+  // 累計入手数（レア度ごと・微量なステータス補正）
+  for (const r of RARITY_COUNT) {
+    for (let i = 0; i < r.tiers; i++) {
+      const threshold = r.step * (i + 1);
+      out.push({
+        key: `rarityCount:${r.rarity}:${i}`,
+        group: `rarityCount:${r.rarity}`,
+        name: `${r.rarity} 装備収集 ${i + 1}`,
+        desc: `${r.rarity} の装備を累計 ${threshold} 個入手`,
+        metric: `rarityCount.${r.rarity}`,
+        threshold,
+        alex: r.alex,
+        bonus: { type: 'allStats', value: r.value, form: 'add' },
+      });
+    }
+  }
 
   // 各ジョブ Lv75 到達
   for (const id of JOB_IDS) {

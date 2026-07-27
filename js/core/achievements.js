@@ -21,7 +21,8 @@ export function newStats() {
     fusions: 0,
     gachaPulls: 0,
     uniqueEquipOwned: 0,
-    firstRarity: {},      // { N:1, R:1, ... }
+    firstRarity: {},      // { N:1, R:1, ... } 初回入手
+    rarityCount: {},      // { N:120, R:34, ... } 累計入手数（売却しても減らない）
     job4clear: {},        // { war:1, ... }
   };
 }
@@ -40,6 +41,9 @@ function metricValue(state, metric) {
   }
   if (metric.startsWith('firstRarity.')) {
     return state.stats.firstRarity?.[metric.slice(12)] ?? 0;
+  }
+  if (metric.startsWith('rarityCount.')) {
+    return state.stats.rarityCount?.[metric.slice(12)] ?? 0;
   }
   if (metric.startsWith('job4clear.')) {
     return state.stats.job4clear?.[metric.slice(10)] ?? 0;

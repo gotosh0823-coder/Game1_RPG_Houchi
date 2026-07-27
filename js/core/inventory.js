@@ -65,9 +65,20 @@ export function newInventory() {
   return { items: [], nextId: 1, equipped: {}, autoSell: '' };
 }
 
+/** 実績用：レア度ごとの累計入手数と初回入手を記録する */
+function recordAcquire(state, rarity) {
+  if (!state.stats.rarityCount) state.stats.rarityCount = {};
+  state.stats.rarityCount[rarity] = (state.stats.rarityCount[rarity] ?? 0) + 1;
+  if (!state.stats.firstRarity[rarity]) state.stats.firstRarity[rarity] = 1;
+}
+
 export function addItem(state, name, rarity = 'N') {
   const inv = state.inv;
   if (!catalogOf(name)) return null;
+
+  // 入手した時点で数える。自動売却されたぶんも含める
+  // （拾ったのに実績が進まないと、自動売却を入れた瞬間に損をすることになる）
+  recordAcquire(state, rarity);
 
   // 自動売却の対象なら、持たずにギルへ。
   // 所持枠が埋まっている場合も同じ扱いにする（黙って消えると、
@@ -82,8 +93,7 @@ export function addItem(state, name, rarity = 'N') {
   const item = { id: inv.nextId++, name, rarity, level: 1 };
   inv.items.push(item);
 
-  // 初回入手の実績用。売却で減らないよう、種類数は最大値を保持する
-  if (!state.stats.firstRarity[rarity]) state.stats.firstRarity[rarity] = 1;
+  // 所持種類数は売却で減らないよう、最大値を保持する
   const kinds = new Set(inv.items.map(i => i.name)).size;
   state.stats.uniqueEquipOwned = Math.max(state.stats.uniqueEquipOwned ?? 0, kinds);
   return item;
@@ -246,7 +256,7 @@ export function fuse(state, name, rarity) {
   const item = { id: state.inv.nextId++, name, rarity: up, level: 1 };
   state.inv.items.push(item);
   state.stats.fusions++;
-  if (!state.stats.firstRarity[up]) state.stats.firstRarity[up] = 1;
+  recordAcquire(state, up);
 
   // 出来上がったものを、素材を着けていたジョブにそのまま着せ直す
   if (wearer) equip(state, wearer, item.id);

@@ -25,7 +25,7 @@ python3 -m http.server 8000
 | 編成 | 4枠にジョブを割り当てる。ジョブ詳細と**限界突破**もここ |
 | 装備 | ジョブごとに4部位。ギルでの強化、同名合成、売却 |
 | 店 | モグボナンザ（単発 💎5 / 11連 💎50） |
-| 実績 | 249段階。自動取得＋通知、進捗バー |
+| 実績 | 299段階。自動取得＋通知、進捗バー。**遺物**の収集状況もここ |
 | 設定 | 自動売却のレア度、セーブデータの削除 |
 
 ### 装備
@@ -45,10 +45,26 @@ python3 -m http.server 8000
 python3 tools/gen_equipment.py
 ```
 
+### 遺物
+
+**オンライン中に全滅したときだけ**手に入る、永続のコレクション要素。
+50ステージごとの帯に10種ずつ、ステージ200まで**40種**。
+
+- 全滅すると、その帯の未入手から3種が提示され、ひとつ選ぶ
+- 受け取ると**編成中のジョブレベルが15下がる**（見送ることもできる）
+- 効果は帯をまたいで同じ（最大HP +50% / 攻撃力 +50% / 獲得EXP +100% …）
+- 1帯10種を集めきると、その帯での全滅では以降なにも起きない
+
+壁で全滅を繰り返す時間に、進行と選択を持ち込むための要素。
+1周で15〜18回全滅し、12〜14個ほど集まる。
+詳細は [docs/spec-relics.md](docs/spec-relics.md)。
+
 ### バランス
 
-敵の伸びは **×1.09 / ステージ**。ヘッドレスsimでの壁は
-**ステージ91**（ガチャを引く場合）／**ステージ29**（引かない場合）。
+敵の総HPは **×1.09 / ステージ**、敵ATKだけ **×1.10**（総HPと同じにすると
+誰も死ななくなり、全滅でしか出ない遺物が開かないため）。
+ヘッドレスsimでの壁は **ステージ93〜94**（ガチャあり・遺物を集める）／
+**84〜87**（遺物を取らない）／**24〜30**（ガチャなし）。
 
 装備が「到達ステージから自動で決まる」仕様だった頃は ×1.45 だった。
 装備を自力で集めるものにした時点で、プレイヤー側で繰り返し掛かる指数が
@@ -64,6 +80,7 @@ python3 tools/gen_equipment.py
 - [docs/spec-equipment.md](docs/spec-equipment.md) — 装備システムの仕様
   （レア度／グループ／レベル強化／合成／ドロップ／ガチャ）
 - [docs/spec-achievements.md](docs/spec-achievements.md) — 実績ボーナスの仕様
+- [docs/spec-relics.md](docs/spec-relics.md) — 遺物の仕様（全滅で入手）
 - [data/equipment.csv](data/equipment.csv) — 装備リスト（Excelで編集可）
 - [data/achievements.csv](data/achievements.csv) — 実績リスト（Excelで編集可）
 
@@ -78,10 +95,12 @@ js/
   data/enemies.js        敵の数値テーブル
   data/achievements.js   実績の定義
   data/equipment-list.js 装備カタログ533種（自動生成）
+  data/relics.js         遺物40種の定義
   core/battle.js         戦闘シミュレータ
   core/stats.js          ステータス計算・EXP
   core/inventory.js      装備の所持・装備・強化・合成・ドロップ・ガチャ
   core/achievements.js   実績の計測・判定・報酬
+  core/relics.js         遺物の入手・集計
   core/save.js           セーブ／ロード・オフライン報酬・限界突破
   ui/render.js           戦闘画面の描画
   ui/screens.js          編成 / 装備 / 店 / 設定

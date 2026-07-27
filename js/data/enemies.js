@@ -35,8 +35,14 @@ const GROWTH = 1.09;
 export function totalHp(stage) {
   return 110 * Math.pow(GROWTH, stage - 1);
 }
+// 攻撃力だけは総HPより速く伸ばす。
+// 同じ伸びにすると、進行が止まるときの止まり方が「時間がかかるだけで誰も死なない」
+// になり、全滅がゲーム1周で0〜1回しか起きなくなる（実測）。
+// 遺物は全滅でしか手に入らないので、それでは content が開かない。
+const ATK_GROWTH = 1.10;
+
 export function enemyAtk(stage) {
-  return 5 * Math.pow(GROWTH, stage - 1);
+  return 5 * Math.pow(ATK_GROWTH, stage - 1);
 }
 // 防御は 100/(100+DEF) で軽減率に効くので、指数で伸ばすと
 // プレイヤーの攻撃力がいくら伸びても軽減され続けて詰む。線形にしてある。
@@ -52,8 +58,23 @@ export function enemyAgi(stage) {
 export function goldPerBattle(stage) {
   return 8 * Math.pow(GROWTH, stage - 1);
 }
+// EXPだけは敵（1.09）より速く伸ばす。
+// 必要EXPはレベルの多項式（40 × Lv^1.9）なので、収入が敵と同じ速さだと
+// レベルがまったく追いつかず、Lv75に一生届かない。
+//
+// 逆に速すぎると「1戦闘で6レベル上がる」状態になり、遺物のレベル代償
+// （core/relics.js の -15）が実質ゼロになる。元の 1.18 がまさにその状態だった。
+//
+// 壁の位置と Lv75 到達ステージ（6回ずつ実測）
+//   1.12 … 壁46〜49                          中盤でレベルが追いつかず崩れる
+//   1.14 … 6回中5回は壁94 / Lv75は62、残り1回は壁47で崩壊  ← 不安定
+//   1.16 … 6回とも壁92〜94 / Lv75は56〜57     ← 採用
+//   1.18 … 6回とも壁92〜93 / Lv75は51〜52     元の値
+// 壁を動かさず、かつ崩壊しない範囲でいちばん遅い 1.16 を採った。
+// Lv75到達が51 → 57に伸び、遺物のレベル代償（-15）の回復も
+// 10戦 → 27戦になる。1.14 まで下げると回復は重くなるが、崩壊する回が出る。
 export function expPerBattle(stage) {
-  return 9 * Math.pow(1.18, stage - 1);
+  return 9 * Math.pow(1.16, stage - 1);
 }
 
 // --- レア枠：メタルスライム ---
