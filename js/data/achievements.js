@@ -156,7 +156,7 @@ export function buildAchievements() {
     });
   }
 
-  // 初回入手（装備システムの実装待ち。定義だけ先に置く）
+  // 初回入手（レア度ごとに報酬が違う）
   FIRST_RARITY.forEach((r, i) => {
     out.push({
       key: `firstRarity:${r.rarity}`,

@@ -12,12 +12,31 @@ const NORMAL_NAMES = [
 ];
 const BOSS_NAMES = ['オーガ', 'ドラゴン', 'テング', 'ベヒーモス', 'アダマンタス'];
 
+// --- 伸び率 ---
+//
+// 以前は ×1.45/ステージ だった。これは「到達ステージから装備が自動で決まる」
+// 前提の値で、装備を所持品制（レア度＋レベル）に作り替えた時点で成立しなくなった。
+//
+// いまプレイヤー側で指数的に伸びる軸は次の2本しかない。
+//   ・装備 … N Lv1 → UR Lv50 で約17.5倍。ゲーム全体を通して一度きり
+//            （帯が変わっても基礎値は同じなので、帯をまたいでも積み上がらない）
+//   ・実績「大陸踏破」… 50ステージごとに ×17.5
+// 長期的に持続するのは後者だけで、1ステージあたりに直すと 17.5^(1/50) ≒ 1.059。
+// つまり敵の伸びは 1.059 を超えたぶんだけ、いつか必ず壁になる。
+//
+// 測定値（ヘッドレスsim・最善手で回した場合の壁）
+//   ×1.07 → 壁なし（250まで到達・17.7h）  ×1.08 → 140  ×1.09 → 93
+//   ×1.10 → 43   ×1.12 → 33   ×1.14 → 28   ×1.45 → 10
+// 1.09 を採った。帯2（ステージ51〜）と「大陸踏破」の乗算を必ず1回は通り、
+// そのうえで壁が残る。docs/balance.md 参照。
+const GROWTH = 1.09;
+
 // 1戦闘あたりの総HP
 export function totalHp(stage) {
-  return 110 * Math.pow(1.45, stage - 1);
+  return 110 * Math.pow(GROWTH, stage - 1);
 }
 export function enemyAtk(stage) {
-  return 5 * Math.pow(1.46, stage - 1);
+  return 5 * Math.pow(GROWTH, stage - 1);
 }
 // 防御は 100/(100+DEF) で軽減率に効くので、指数で伸ばすと
 // プレイヤーの攻撃力がいくら伸びても軽減され続けて詰む。線形にしてある。
@@ -28,8 +47,10 @@ export function enemyDef(stage) {
 export function enemyAgi(stage) {
   return 2 + stage * 1.2;
 }
+// ギルは装備の強化費用の基準にもなっている（core/inventory.js の baseCost）。
+// 敵と同じ伸びにしておくと、帯が変わっても「1レベル上げるのに何戦ぶん」が変わらない。
 export function goldPerBattle(stage) {
-  return 8 * Math.pow(1.40, stage - 1);
+  return 8 * Math.pow(GROWTH, stage - 1);
 }
 export function expPerBattle(stage) {
   return 9 * Math.pow(1.18, stage - 1);

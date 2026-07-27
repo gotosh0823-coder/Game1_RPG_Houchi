@@ -1,8 +1,6 @@
 // エントリポイント
 //
-// v0（仮）の範囲：
-//   - 戦闘画面は仕様どおり実装
-//   - 編成 / 装備 / 店 / 設定 は仮画面（切り替わって画面名が出るだけ）
+// 画面は 戦闘 / 編成 / 装備 / 店 / 実績 / 設定 の6枚。すべて操作できる。
 
 import { Battle, TICK } from './core/battle.js';
 import { load, save, applyOffline, wipeSave, canLimitBreak, doLimitBreak, claimDailyLogin } from './core/save.js';
@@ -10,6 +8,7 @@ import { JOBS, proofName } from './data/jobs.js';
 import { METAL } from './data/enemies.js';
 import { claim, progress } from './core/achievements.js';
 import { Renderer, shortNum } from './ui/render.js';
+import { Screens } from './ui/screens.js';
 
 const state = load();
 const offline = applyOffline(state);
@@ -70,6 +69,12 @@ function onEvent(type, payload) {
       renderer.toast(`「${proofName(payload.jobId)}」を入手`);
       break;
 
+    case 'drop':
+      for (const item of payload.items) {
+        renderer.toast(`${item.name}（${item.rarity}）を入手`);
+      }
+      break;
+
     case 'wipe':
       renderer.toast(`全滅　ステージ ${payload.stage} の最初から`);
       break;
@@ -99,6 +104,21 @@ autoBtn.addEventListener('click', () => {
 });
 document.getElementById('gold').appendChild(autoBtn);
 
+// --- 冒険以外の画面 ---
+//
+// 編成・装備・店・設定。装備やジョブを変えたらその場で戦闘のステータスを
+// 組み直す（ステージの頭からやり直しにはしない：HPは満タンに戻る）。
+
+const ui = new Screens(state, {
+  toast: (t) => renderer.toast(t),
+  onChange: () => { renderAlexandrite(); save(state); },
+  onPartyChange: () => {
+    battle.allies = state.party.map((jobId, slot) => battle.makeAlly(jobId, slot));
+    renderer.buildAllies(battle.allies);
+    renderer.buildAbilityBar(battle.allies, useAbility);
+  },
+});
+
 // --- 画面切り替え ---
 
 const screens = {
@@ -120,7 +140,13 @@ function showScreen(name) {
   }
   // アビリティバーは戦闘画面でだけ出す
   abilityBar.classList.toggle('is-visible', name === 'battle');
+  // 戦闘以外の画面では、通知が見出しや操作の上に居座らないよう下へ寄せる
+  renderer.toasts.classList.toggle('low', name !== 'battle');
+
   if (name === 'achievements') renderAchievements();
+  if (name === 'party') ui.renderParty();
+  if (name === 'equip') ui.renderEquip();
+  if (name === 'shop') { ui.renderShop(); }
 }
 
 for (const btn of document.querySelectorAll('#nav button')) {
@@ -244,7 +270,13 @@ function frame(now) {
 
   renderer.update(battle, state);
   achTimer += dt;
-  if (achTimer >= 1) { achTimer = 0; checkAchievements(); renderAlexandrite(); }
+  if (achTimer >= 1) {
+    achTimer = 0;
+    checkAchievements();
+    renderAlexandrite();
+    // ボス撃破でアレキサンドライトが増えるので、店を開いたままでもボタンを更新する
+    if (screens.shop.classList.contains('is-active')) ui.renderShop();
+  }
   requestAnimationFrame(frame);
 }
 let achTimer = 0;

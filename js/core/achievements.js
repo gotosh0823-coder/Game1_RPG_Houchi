@@ -17,7 +17,7 @@ export function newStats() {
     manualStageClears: 0,
     flawlessStageClears: 0,
     totalGold: 0,
-    // 装備システムの実装待ち
+    // 装備がらみ（core/inventory.js が更新する）
     fusions: 0,
     gachaPulls: 0,
     uniqueEquipOwned: 0,

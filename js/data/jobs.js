@@ -29,7 +29,7 @@ export const JOBS = {
     color: '#d2603f',
     grades: { hp: 'A', mp: 'F', str: 'A', dex: 'B', vit: 'A', agi: 'C', int: 'E', mnd: 'D', chr: 'C' },
     weaponType: 'axe',
-    armorRank: 'heavy',
+    armorGroup: 'heavy',      // 防具グループ（魔道士 / 重量 / 軽量）
     speed: 1.00,          // 1秒あたりの行動回数（基準値）
     hateRate: 1.5,        // ヘイト倍率（狙われやすさ）。盾役として前に立たせる
     autoAction: 'physical',
@@ -56,7 +56,7 @@ export const JOBS = {
     color: '#c9973a',
     grades: { hp: 'A+', mp: 'F', str: 'A', dex: 'B', vit: 'A+', agi: 'B', int: 'F', mnd: 'C', chr: 'C' },
     weaponType: 'h2h',
-    armorRank: 'medium',
+    armorGroup: 'light',      // 防具グループ（魔道士 / 重量 / 軽量）
     speed: 1.30,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',
@@ -83,7 +83,7 @@ export const JOBS = {
     color: '#d8d2c0',
     grades: { hp: 'D', mp: 'A', str: 'D', dex: 'D', vit: 'C', agi: 'D', int: 'C', mnd: 'A+', chr: 'B' },
     weaponType: 'pole',
-    armorRank: 'light',
+    armorGroup: 'mage',      // 防具グループ（魔道士 / 重量 / 軽量）
     speed: 0.90,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'heal',   // HP70%未満の味方がいればケアル、いなければ物理
@@ -110,7 +110,7 @@ export const JOBS = {
     color: '#8a6fd0',
     grades: { hp: 'E', mp: 'A+', str: 'E', dex: 'D', vit: 'D', agi: 'D', int: 'A+', mnd: 'C', chr: 'D' },
     weaponType: 'rod',
-    armorRank: 'light',
+    armorGroup: 'mage',      // 防具グループ（魔道士 / 重量 / 軽量）
     speed: 0.80,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'magic',  // ファイア。MPが尽きたら杖で殴る
@@ -137,7 +137,7 @@ export const JOBS = {
     color: '#c0506a',
     grades: { hp: 'C', mp: 'B', str: 'C', dex: 'B', vit: 'C', agi: 'B', int: 'B', mnd: 'B', chr: 'B' },
     weaponType: 'sword',
-    armorRank: 'medium',
+    armorGroup: 'mage',      // 防具グループ（魔道士 / 重量 / 軽量）
     speed: 1.10,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',
@@ -164,7 +164,7 @@ export const JOBS = {
     color: '#5aa46a',
     grades: { hp: 'C', mp: 'E', str: 'C', dex: 'A+', vit: 'C', agi: 'A', int: 'D', mnd: 'D', chr: 'B' },
     weaponType: 'dagger',
-    armorRank: 'light',
+    armorGroup: 'light',      // 防具グループ（魔道士 / 重量 / 軽量）
     speed: 1.20,
     hateRate: 1.0,        // ヘイト倍率（狙われやすさ）
     autoAction: 'physical',
@@ -185,6 +185,12 @@ export const JOBS = {
 };
 
 export const JOB_IDS = Object.keys(JOBS);
+
+// 防具グループ（3種）。武器はジョブ専用なのでグループを持たない。
+export const ARMOR_GROUP_NAMES = { mage: '魔道士', heavy: '重量', light: '軽量' };
+export const WEAPON_TYPE_NAMES = {
+  axe: '斧', h2h: '格闘', pole: '棍', rod: '杖', sword: '片手剣', dagger: '短剣',
+};
 
 // ヘイト倍率の既定値（ジョブに hateRate が無い場合に使う）
 export const DEFAULT_HATE_RATE = 1.0;

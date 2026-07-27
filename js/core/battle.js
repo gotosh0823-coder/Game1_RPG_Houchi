@@ -10,8 +10,11 @@ import {
   goldPerBattle, expPerBattle, PROOF_DROP_STAGE, PROOF_DROP_RATE, METAL,
 } from '../data/enemies.js';
 import { ALEX_PER_BOSS } from './save.js';
+import { rollDrops } from './inventory.js';
+import { bonuses } from './achievements.js';
 
 export const TICK = 0.1;              // 秒
+export const BASE_DROP_RATE = 20;     // ボスの装備ドロップ率(%)。100%超は複数ドロップ
 const BASE_MP_REGEN = 1.0;            // 全員共通のMP自然回復(/秒)
 const CURE_THRESHOLD = 0.70;          // 白の自動ケアル閾値
 const CURE_MP = 10;
@@ -56,8 +59,8 @@ export class Battle {
   makeAlly(jobId, slot) {
     const job = JOBS[jobId];
     const jd = this.save.jobs[jobId];
-    // 素のステータス＋装備4部位の補正
-    const st = totalStats(jobId, jd.level, jd.limitBreaks, this.save.maxStage, this.save);
+    // 素のステータス＋いま着けている装備4本の補正
+    const st = totalStats(this.save, jobId);
     const maxHp = st.hp;
 
     return {
@@ -65,6 +68,7 @@ export class Battle {
       level: jd.level,
       limitBreaks: jd.limitBreaks,
       stats: st,
+      eff: st.effects,        // ガチャ装備の特殊効果（無ければ空）
       maxHp, hp: maxHp,
       maxMp: st.mp, mp: st.mp,
       gauge: Math.random() * 0.2,
@@ -98,6 +102,7 @@ export class Battle {
       const cut = PASSIVE.dualWield(a.level) / 100;
       sp = sp / (1 - Math.min(0.6, cut));
     }
+    sp *= 1 + (a.eff.speed ?? 0) / 100;  // 装備：攻撃間隔短縮／行動速度
     if (a.buffs.speedMul > 0) sp *= 3;   // 百烈拳
     return sp;
   }
@@ -114,10 +119,11 @@ export class Battle {
     return d;
   }
 
-  // 攻撃力・魔力・回復量。装備の補正はステータスに合算済み
+  // 攻撃力・魔力・回復量。装備のステータス補正はすでに合算済みで、
+  // ここで乗るのはガチャ装備の特殊効果（％）だけ
   attackPower(a) { return a.stats.atk + a.stats.str * 0.5; }
-  magicPower(a) { return a.stats.int * 1.8; }
-  healPower(a) { return a.stats.mnd * 2.5; }
+  magicPower(a) { return a.stats.int * 1.8 * (1 + (a.eff.magicDamage ?? 0) / 100); }
+  healPower(a) { return a.stats.mnd * 2.5 * (1 + (a.eff.healPower ?? 0) / 100); }
 
   // --- メインループ ---
 
@@ -178,7 +184,7 @@ export class Battle {
       if (a.recastLeft > 0) a.recastLeft = Math.max(0, a.recastLeft - dt);
       if (!a.alive) continue;
 
-      let regen = BASE_MP_REGEN;
+      let regen = BASE_MP_REGEN + (a.eff.mpRegen ?? 0);
       if (a.job.passive.id === 'clear_mind') regen += PASSIVE.clearMind(a.level);
       a.mp = Math.min(a.maxMp, a.mp + regen * dt);
 
@@ -238,11 +244,11 @@ export class Battle {
 
     this.swing(a, target);
 
-    // ダブルアタック
-    if (a.job.passive.id === 'double_attack') {
-      if (Math.random() * 100 < PASSIVE.doubleAttack(a.level)) {
-        this.swing(a, target.alive ? target : this.lowestEnemy());
-      }
+    // ダブルアタック（パッシブ＋装備）
+    const daRate = (a.job.passive.id === 'double_attack' ? PASSIVE.doubleAttack(a.level) : 0)
+      + (a.eff.doubleAttack ?? 0);
+    if (daRate > 0 && Math.random() * 100 < daRate) {
+      this.swing(a, target.alive ? target : this.lowestEnemy());
     }
   }
 
@@ -323,7 +329,8 @@ export class Battle {
    * 上の式は敵ATKとVITが同じ速さで伸びるかぎり軽減率が一定に保たれる。
    */
   incomingDamage(rawAtk, target) {
-    return rawAtk * rawAtk / (rawAtk + target.stats.vit * VIT_DEFENSE);
+    const raw = rawAtk * rawAtk / (rawAtk + target.stats.vit * VIT_DEFENSE);
+    return raw * (1 - Math.min(0.8, (target.eff.damageCut ?? 0) / 100));
   }
 
   // --- 敵の行動 ---
@@ -332,7 +339,8 @@ export class Battle {
     const target = this.rollTarget();
     if (!target) return;
 
-    const hitRate = Math.max(20, Math.min(95, 75 + (e.agi - target.stats.agi) * 0.5));
+    const hitRate = Math.max(20, Math.min(95,
+      75 + (e.agi - target.stats.agi) * 0.5 - (target.eff.evasion ?? 0)));
     if (Math.random() * 100 >= hitRate) {
       this.emit('miss', { unit: target });
       return;
@@ -340,11 +348,11 @@ export class Battle {
 
     this.damageAlly(target, this.incomingDamage(e.atk, target) * rand(0.9, 1.1));
 
-    // カウンター
-    if (target.alive && target.job.passive.id === 'counter') {
-      if (Math.random() * 100 < PASSIVE.counter(target.level)) {
-        this.swing(target, e);
-      }
+    // カウンター（パッシブ＋装備）
+    const ctRate = (target.job.passive.id === 'counter' ? PASSIVE.counter(target.level) : 0)
+      + (target.eff.counter ?? 0);
+    if (target.alive && ctRate > 0 && Math.random() * 100 < ctRate) {
+      this.swing(target, e);
     }
   }
 
@@ -401,7 +409,7 @@ export class Battle {
   }
 
   hateRate(a) {
-    return a.job.hateRate ?? DEFAULT_HATE_RATE;
+    return (a.job.hateRate ?? DEFAULT_HATE_RATE) + (a.eff.hate ?? 0);
   }
 
   /** ヘイトの比率で狙う相手を抽選する */
@@ -529,12 +537,27 @@ export class Battle {
     return bonus;
   }
 
+  /**
+   * ボスの装備ドロップ率(%)。100%を超えたぶんは複数ドロップになる。
+   *   基本20% ＋ トレジャーハンターの半分 ＋ 実績ボーナス ＋ 装備の特殊効果
+   * トレジャーハンターがゴールドに全額、ドロップに半額効くのは仕様どおり
+   * （シーフは稼ぎに強く、ボス戦そのものには強くない、という位置づけ）。
+   */
+  dropRate() {
+    let rate = BASE_DROP_RATE + this.treasureBonus() * 0.5;
+    rate += bonuses(this.save).dropRateAdd;
+    for (const a of this.allies) rate += a.eff.dropRate ?? 0;
+    return rate;
+  }
+
   winBattle() {
     const stage = this.save.stage;
     const isBoss = this.isBossBattle;
 
     // ゴールド（トレジャーハンターは編成に入っている枠ぶん加算）
-    const gold = goldPerBattle(stage) * (isBoss ? 5 : 1) * (1 + this.treasureBonus() / 100);
+    const gold = goldPerBattle(stage) * (isBoss ? 5 : 1)
+      * (1 + this.treasureBonus() / 100)
+      * (1 + bonuses(this.save).goldRateAdd / 100);
     this.save.gold += gold;
     this.save.stats.totalGold += gold;
     if (isBoss) {
@@ -553,6 +576,8 @@ export class Battle {
 
     if (isBoss) {
       if (stage >= PROOF_DROP_STAGE) this.rollProofs();
+      const drops = rollDrops(this.save, stage, this.dropRate());
+      if (drops.length > 0) this.emit('drop', { items: drops });
       this.recordStageClear(stage);
       this.save.maxStage = Math.max(this.save.maxStage, stage + 1);
       this.startStage(stage + 1);
@@ -594,7 +619,7 @@ export class Battle {
 
   gainExp(jobId, amount) {
     const jd = this.save.jobs[jobId];
-    const mult = 1 + 0.5 * jd.limitBreaks;
+    const mult = (1 + 0.5 * jd.limitBreaks) * (1 + bonuses(this.save).expRateAdd / 100);
     jd.exp += amount * mult;
 
     for (;;) {

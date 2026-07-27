@@ -362,29 +362,264 @@ html, body {
 .ach-bar > i { display: block; height: 100%; background: var(--accent); }
 .ach.done .ach-bar > i { background: var(--gold); }
 
-/* ---------- 仮画面 ---------- */
+/* ---------- 冒険以外の画面（共通パーツ） ---------- */
 
-.placeholder { align-items: center; justify-content: center; }
-.placeholder-inner { text-align: center; padding: 24px; }
-.placeholder-icon { font-size: 44px; margin-bottom: 12px; }
-.placeholder h2 { font-size: 20px; margin-bottom: 6px; }
-.placeholder p { color: var(--dim); font-size: 13px; }
-.placeholder .note {
-  margin-top: 14px;
-  font-size: 11px;
-  color: #6a6d80;
-  line-height: 1.7;
+#screen-party, #screen-equip, #screen-shop, #screen-settings, #screen-achievements {
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 10px 12px 24px;
+  gap: 8px;
 }
-.placeholder button.danger {
-  margin-top: 22px;
-  padding: 8px 16px;
-  border: 1px solid #6b3535;
-  border-radius: 8px;
-  background: #2a1c1c;
-  color: #e0968c;
+
+.screen-title { font-size: 15px; font-weight: 700; letter-spacing: .06em; }
+.sub-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dim);
+}
+.sub-title .hint { margin-left: auto; font-weight: 400; font-size: 10px; color: #6a6d80; }
+.lead { font-size: 11px; color: var(--dim); line-height: 1.8; }
+
+.card-list { display: flex; flex-direction: column; gap: 7px; }
+
+.card, .panel {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  padding: 9px 11px;
+  color: var(--text);
+  font: inherit;
+}
+.panel { display: flex; flex-direction: column; gap: 5px; }
+.panel hr { border: 0; border-top: 1px solid var(--line); margin: 3px 0; }
+
+.card-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.card-head .nm { flex: 1 1 auto; min-width: 0; font-size: 13px; font-weight: 600; }
+.card-head .ic { font-size: 16px; }
+.card-sub { font-size: 11px; color: var(--dim); line-height: 1.7; margin-top: 3px; }
+.card-sub.dim { color: #6a6d80; }
+.card-sub.ok { color: var(--hp); }
+.card-sub.eff { color: #7fd4e8; }
+.dim { color: #6a6d80; }
+
+.kv { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
+.kv span { color: var(--dim); }
+.kv b { margin-left: auto; font-variant-numeric: tabular-nums; }
+
+.tag {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  font-size: 10px;
+  color: var(--dim);
+}
+.tag.in { color: var(--accent); border-color: var(--accent); }
+.tag.warn { color: #e0a86c; border-color: #6b5335; }
+.tag.slot { order: -1; min-width: 52px; text-align: center; }
+
+.card-actions { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.card-actions button, button.primary, .setting-row button {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+button.primary { border-color: var(--accent); }
+.card-actions button:disabled, button.primary:disabled { opacity: .35; cursor: default; }
+.card-actions button:active:not(:disabled) { transform: translateY(1px); }
+button.danger { border-color: #6b3535; background: #2a1c1c; color: #e0968c; }
+
+/* レア度 */
+.rr {
+  display: inline-block;
+  padding: 0 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.r-N   { background: #3a3d4d; color: #b9bccb; }
+.r-R   { background: #26506b; color: #9fd4ef; }
+.r-SR  { background: #4a3a70; color: #c6b0f0; }
+.r-SSR { background: #6b5320; color: #f0d48a; }
+.r-UR  { background: #6b2a3a; color: #f0a8b8; }
+.lv { font-size: 10px; color: var(--dim); font-variant-numeric: tabular-nums; }
+
+/* ---------- 編成 ---------- */
+
+.slot-row { display: flex; gap: 6px; }
+.slot {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 2px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  border-bottom: 3px solid var(--job-color, var(--line));
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.slot.is-active { box-shadow: 0 0 0 1px var(--accent) inset; }
+.slot-no { font-size: 9px; color: #6a6d80; }
+.slot-icon { font-size: 20px; line-height: 1; }
+.slot-name { font-size: 11px; font-weight: 600; }
+.slot-lv { font-size: 10px; color: var(--dim); }
+
+.job-card { cursor: pointer; border-left: 3px solid var(--job-color, var(--line)); }
+.job-card.is-in { background: var(--panel-2); }
+.job-card .tag { margin-left: auto; }
+.job-card .tag.in { margin-left: 0; }
+
+/* ---------- 装備 ---------- */
+
+.tabs { display: flex; gap: 4px; }
+.tabs .tab {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 0;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--dim);
+  font: inherit;
+  font-size: 15px;
+  cursor: pointer;
+}
+.tabs .tab span { font-size: 9px; }
+.tabs .tab.is-in { color: var(--text); }
+.tabs .tab.is-active { border-color: var(--accent); color: var(--text); background: var(--panel-2); }
+
+.equip-slot.is-empty { border-style: dashed; }
+.pick { cursor: pointer; }
+.pick.is-active { border-color: var(--accent); }
+
+/* ---------- 店 ---------- */
+
+.shop-actions { display: flex; gap: 8px; }
+.shop-actions button {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 4px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.shop-actions button .sub { font-size: 9px; font-weight: 400; color: var(--dim); }
+
+.gacha-result { display: flex; flex-direction: column; gap: 4px; }
+.gacha-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  font-size: 12px;
+  animation: toast-in .25s ease-out;
+}
+.gacha-item.is-sold { opacity: .5; }
+.gacha-item .tag { margin-left: auto; }
+@keyframes toast-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; } }
+
+.rate-table { display: flex; flex-direction: column; gap: 3px; }
+
+/* ---------- 設定 ---------- */
+
+.setting-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--panel);
+  padding: 10px 11px;
+}
+.setting-row label { font-size: 12px; font-weight: 600; }
+.setting-row .hint { font-size: 10px; color: #6a6d80; line-height: 1.7; }
+.setting-row select {
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--text);
   font: inherit;
   font-size: 12px;
+}
+
+/* ---------- 下から出るシート ---------- */
+
+.sheet {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, .6);
+  z-index: 25;
+}
+.sheet.hidden { display: none; }
+.sheet-box {
+  width: 100%;
+  max-width: 480px;
+  max-height: 78%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+  border-radius: 14px 14px 0 0;
+  animation: sheet-up .18s ease-out;
+}
+@keyframes sheet-up { from { transform: translateY(24px); opacity: .4; } }
+.sheet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 700;
+}
+#sheet-close {
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-2);
+  color: var(--dim);
+  font: inherit;
   cursor: pointer;
+}
+#sheet-body {
+  overflow-y: auto;
+  padding: 10px 12px calc(18px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
 }
 
 /* ---------- モーダル ---------- */
@@ -434,7 +669,10 @@ html, body {
   gap: 4px;
   pointer-events: none;
   z-index: 15;
+  transition: top .2s, bottom .2s;
 }
+/* 冒険以外の画面では、見出しや操作の上に居座らないよう下に寄せる */
+#toasts.low { top: auto; bottom: 96px; }
 .toast {
   padding: 5px 12px;
   border-radius: 999px;

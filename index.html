@@ -28,43 +28,48 @@
     </div>
   </main>
 
-  <!-- 以下は仮画面（画面が切り替わることだけ確認できる状態） -->
-  <main id="screen-party" class="screen placeholder">
-    <div class="placeholder-inner">
-      <div class="placeholder-icon">🧭</div>
-      <h2>編成</h2>
-      <p>仮画面</p>
-      <p class="note">4枠 / 解放済みジョブから選択 / 同一ジョブの重複可</p>
-    </div>
+  <!-- 編成：4枠にジョブを割り当てる。限界突破もここから -->
+  <main id="screen-party" class="screen">
+    <h2 class="screen-title">編成</h2>
+    <div id="party-slots" class="slot-row"></div>
+    <h3 class="sub-title">ジョブ<span class="hint">タップで選択中の枠に入れる（重複可）</span></h3>
+    <div id="party-jobs" class="card-list"></div>
+    <div id="party-detail"></div>
   </main>
 
-  <main id="screen-equip" class="screen placeholder">
-    <div class="placeholder-inner">
-      <div class="placeholder-icon">🛡</div>
-      <h2>装備</h2>
-      <p>仮画面</p>
-      <p class="note">武器 / 胴 / 装飾の3スロット、ジョブ制限のみ</p>
-    </div>
+  <!-- 装備：ジョブごとに4部位。強化・合成・売却もここ -->
+  <main id="screen-equip" class="screen">
+    <h2 class="screen-title">装備</h2>
+    <div id="equip-tabs" class="tabs"></div>
+    <div id="equip-slots" class="card-list"></div>
+    <h3 class="sub-title">所持品<span class="hint" id="equip-count"></span></h3>
+    <div id="equip-bag" class="card-list"></div>
   </main>
 
-  <main id="screen-shop" class="screen placeholder">
-    <div class="placeholder-inner">
-      <div class="placeholder-icon">💰</div>
-      <h2>店</h2>
-      <p>仮画面</p>
-      <p class="note">10ステージごとに新ティア解放、+0〜+10の強化</p>
-    </div>
+  <!-- 店：モグボナンザ（ガチャ限定枠） -->
+  <main id="screen-shop" class="screen">
+    <h2 class="screen-title">モグボナンザ</h2>
+    <p class="lead">アレキサンドライトを使って、ガチャ限定の装備を引く。<br>
+      排出はすべて限定枠。同じ名称を重ねて N → R → SR → SSR → UR に育てる。</p>
+    <div id="shop-actions" class="shop-actions"></div>
+    <div id="shop-result" class="gacha-result"></div>
+    <h3 class="sub-title">排出率</h3>
+    <div id="shop-rates" class="rate-table"></div>
   </main>
 
   <main id="screen-achievements" class="screen">
+    <h2 class="screen-title">実績</h2>
     <div id="ach-list"></div>
   </main>
 
-  <main id="screen-settings" class="screen placeholder">
-    <div class="placeholder-inner">
-      <div class="placeholder-icon">⚙️</div>
-      <h2>設定</h2>
-      <p>仮画面</p>
+  <main id="screen-settings" class="screen">
+    <h2 class="screen-title">設定</h2>
+    <div class="setting-row">
+      <label for="autosell">自動売却</label>
+      <select id="autosell"></select>
+      <p class="hint">選んだレア度以下の装備は、拾った瞬間にギルへ変わる（所持枠を空けるため）</p>
+    </div>
+    <div class="setting-row">
       <button id="btn-reset" class="danger">セーブデータを消して最初から</button>
     </div>
   </main>
@@ -93,6 +98,17 @@
     <h2>留守中の成果</h2>
     <p id="offline-text"></p>
     <button id="offline-close">受け取る</button>
+  </div>
+</div>
+
+<!-- 下から出る共通シート（装備の付け替え・ジョブ選択など） -->
+<div id="sheet" class="sheet hidden">
+  <div class="sheet-box">
+    <div class="sheet-head">
+      <span id="sheet-title"></span>
+      <button id="sheet-close" aria-label="閉じる">✕</button>
+    </div>
+    <div id="sheet-body"></div>
   </div>
 </div>
 

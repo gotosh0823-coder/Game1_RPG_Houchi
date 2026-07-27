@@ -7,16 +7,19 @@
 import { JOB_IDS, LEVEL_CAP } from '../data/jobs.js';
 import { expToNext } from './stats.js';
 import { newStats } from './achievements.js';
+import { newInventory, grantStarterSet } from './inventory.js';
 import {
   goldPerBattle, expPerBattle, BATTLES_PER_STAGE, PROOF_DROP_STAGE,
 } from '../data/enemies.js';
 
 const KEY = 'houchi_rpg_v0';
-const SAVE_VERSION = 1;
+// 2 … 装備を所持品制（レア度＋レベル）に作り替えた。
+//     到達ステージから装備を自動決定していた v1 とは互換性が無い。
+const SAVE_VERSION = 2;
 
 export const OFFLINE_RATE = 0.5;         // 効率50%
 export const OFFLINE_CAP_HOURS = 12;     // 上限12時間
-export const ASSUMED_STAGE_SECONDS = 90; // 1ステージの想定所要時間
+export const ASSUMED_STAGE_SECONDS = 150; // 1ステージの想定所要時間（敵カーブ1.09での実測の中央値あたり）
 
 // --- アレキサンドライトの供給（A / B / C） ---
 //
@@ -39,7 +42,7 @@ export function newSave() {
   for (const id of JOB_IDS) {
     jobs[id] = { level: 1, exp: 0, limitBreaks: 0, proofs: 0 };
   }
-  return {
+  const state = {
     version: SAVE_VERSION,
     stage: 1,
     maxStage: 1,
@@ -52,10 +55,13 @@ export function newSave() {
     achievements: {},           // 取得済みの実績（キー → 1）
     unlockedJobs: [...JOB_IDS],
     jobs,
+    inv: newInventory(),        // 所持装備・装備中・自動売却
     party: ['war', 'mnk', 'whm', 'blm'],
     lastSeen: Date.now(),
     settings: { sound: false },
   };
+  grantStarterSet(state);       // 帯1のN装備を全ジョブに1式ずつ
+  return state;
 }
 
 export function load() {
@@ -93,8 +99,17 @@ export function wipeSave() {
 // 将来ジョブが増えても過去のセーブを壊さないようにする
 function migrate(data) {
   const base = newSave();
+
+  // v1 は装備を持たない（到達ステージから自動で決めていた）。
+  // 所持品に移す元データが無いので、初期装備一式を配り直して続きから遊べるようにする。
   const out = { ...base, ...data };
   out.version = SAVE_VERSION;
+  if (!data.inv || !Array.isArray(data.inv.items)) {
+    out.inv = base.inv;
+  } else {
+    out.inv = { ...newInventory(), ...data.inv };
+    out.inv.equipped = data.inv.equipped || {};
+  }
   out.jobs = { ...base.jobs, ...(data.jobs || {}) };
   for (const id of JOB_IDS) {
     out.jobs[id] = { ...base.jobs[id], ...(out.jobs[id] || {}) };
@@ -164,12 +179,22 @@ export function claimDailyLogin(state) {
 
 // --- 限界突破 ---
 //
-// UIは未実装（編成画面が仮画面のため）。ロジックだけ先に用意してある。
+// 費用は固定額（1,000,000ギル）だったが、ギルの伸びを敵と同じ ×1.09/ステージに
+// 落とした時点で「一生払えない額」になってしまった。
+// いまは到達ステージの稼ぎを基準にした相対額にしてある。
+//
+//   1回目 … 到達ステージの約15ステージぶんの稼ぎ（実際には10ステージほどで貯まる）
+//   以降  … 2倍ずつ
+// 証のほうは1ボスあたり8%なので、n個集めるのに約12.5nステージかかる。
+// 実際の関門は最後まで証で、ギルは「ついでに要る」程度の重さに収めている。
 
-export function limitBreakCost(limitBreaks) {
-  const n = limitBreaks + 1;
+const LB_GOLD_STAGES = 15;
+
+export function limitBreakCost(state, jobId) {
+  const n = (state.jobs[jobId]?.limitBreaks ?? 0) + 1;
+  const perStage = goldPerBattle(state.maxStage) * BATTLES_PER_STAGE;
   return {
-    gold: 1_000_000 * Math.pow(2.5, n - 1),
+    gold: Math.floor(perStage * LB_GOLD_STAGES * Math.pow(2, n - 1)),
     proofs: n,
   };
 }
@@ -177,14 +202,14 @@ export function limitBreakCost(limitBreaks) {
 export function canLimitBreak(state, jobId) {
   const jd = state.jobs[jobId];
   if (jd.level < LEVEL_CAP) return false;
-  const cost = limitBreakCost(jd.limitBreaks);
+  const cost = limitBreakCost(state, jobId);
   return state.gold >= cost.gold && jd.proofs >= cost.proofs;
 }
 
 export function doLimitBreak(state, jobId) {
   if (!canLimitBreak(state, jobId)) return false;
   const jd = state.jobs[jobId];
-  const cost = limitBreakCost(jd.limitBreaks);
+  const cost = limitBreakCost(state, jobId);
   state.gold -= cost.gold;
   jd.proofs -= cost.proofs;
   jd.limitBreaks++;

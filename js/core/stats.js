@@ -4,7 +4,7 @@
 //   限界突破回数を N とすると 成長ボーナス = 1 + 0.05 * N
 
 import { JOBS, GRADE, LEVEL_CAP } from '../data/jobs.js';
-import { equipmentStats } from '../data/equipment.js';
+import { equippedStats, equippedEffects } from './inventory.js';
 import { bonuses } from './achievements.js';
 
 // 基礎値。仕様の初期案（HP30 / MP0）ではLv1が脆すぎて1ステージ目のボスで
@@ -48,32 +48,44 @@ export function expToNext(level) {
 
 // --- 装備込みの合計ステータス ---
 //
-// 装備はステータスを「加算」する（js/data/equipment.js）。
-// 以前あった抽象的な装備倍率（GEAR_GROWTH）は廃止した。
-// プレイヤー側で指数的に伸びる軸は、いまは装備ティアだけが担っている。
+// 装備は「いま実際に着けている4本」の補正を加算する（js/core/inventory.js）。
+// 到達ステージから自動で装備を決めていた暫定仕様は廃止した。
+//
+// プレイヤー側で指数的に伸びる軸は次の2つになった。
+//   1. 装備のレア度×レベル（N Lv1 の 1.0 倍 → UR Lv50 の約17.5倍）… ゲーム全体で一度きり
+//   2. 実績「大陸踏破」の乗算 ×17.5 … 50ステージごとに掛かる
+// つまり長期的に持続する伸びは 17.5^(1/50) ≒ 1.059/ステージ。
+// 敵のカーブはこれを超えられない（超えると必ずどこかで詰む）。docs/balance.md 参照。
 
 const STAT_KEYS = ['hp', 'mp', 'str', 'dex', 'vit', 'agi', 'int', 'mnd', 'chr'];
 
 /**
  * レベルぶん（素のステータス）と装備ぶんを合算して返す。
  * atk は武器の攻撃力で、ステータスとは別枠。
+ *
+ * @param {object} state セーブデータ（所持装備・実績を参照する）
+ * @param {string} jobId
  */
-export function totalStats(jobId, level, limitBreaks, maxStage, state = null) {
-  const job = JOBS[jobId];
-  const base = calcStats(jobId, level, limitBreaks);
-  const gear = equipmentStats(job, maxStage);
+export function totalStats(state, jobId) {
+  const jd = state.jobs[jobId];
+  const base = calcStats(jobId, jd.level, jd.limitBreaks);
+  const gear = equippedStats(state, jobId);
+  const effects = equippedEffects(state, jobId);
 
   // 実績ボーナス（加算%と乗算）
-  const b = state ? bonuses(state, jobId) : null;
-  const allMul = b ? (1 + b.allStatsAdd / 100) * b.allStatsMul : 1;
+  const b = bonuses(state, jobId);
+  const allMul = (1 + b.allStatsAdd / 100) * b.allStatsMul;
 
-  const out = { atk: gear.atk * allMul * (b ? 1 + b.atkAdd / 100 : 1) };
+  const out = {
+    atk: gear.atk * allMul * (1 + b.atkAdd / 100),
+    effects,
+  };
   for (const k of STAT_KEYS) {
     // MPを持たないジョブには装備のMPも乗せない
     if (k === 'mp' && base.mp === 0) { out.mp = 0; continue; }
-    let v = (base[k] + gear[k]) * allMul;
-    if (b && k === 'hp') v *= 1 + b.hpAdd / 100;
-    if (b && k === 'vit') v *= 1 + b.vitAdd / 100;
+    let v = (base[k] + (gear[k] || 0)) * allMul;
+    if (k === 'hp') v *= 1 + b.hpAdd / 100;
+    if (k === 'vit') v *= 1 + b.vitAdd / 100;
     out[k] = Math.floor(v);
   }
   return out;
