@@ -183,8 +183,15 @@ export function equippedEffects(state, jobId) {
 
 // --- レベル強化（ギル・線形） ---
 
+// 強化・合成費用の基準額。帯の開始ステージの1戦闘ゴールドの何倍か。
+//
+// 5倍だった。敵とギルを指数（1.09/ステージ）で伸ばしていた頃は、帯の中で
+// 収入が74倍に増えるので帯の後半で一気に払えたが、べき乗カーブでは
+// 帯の中の伸びが3倍程度しかなく、合成がほとんど実行できなくなった
+// （1周で合成6回・URはすべてガチャ直引き＝運次第）。
+// 2倍にすると合成が回るようになり、到達ステージのばらつきが大きく減る。
 function baseCost(band) {
-  return Math.max(40, Math.floor(goldPerBattle((band - 1) * STAGES_PER_BAND + 1) * 5));
+  return Math.max(40, Math.floor(goldPerBattle((band - 1) * STAGES_PER_BAND + 1) * 2));
 }
 
 export function levelUpCost(item) {

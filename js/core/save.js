@@ -20,7 +20,7 @@ const SAVE_VERSION = 3;
 
 export const OFFLINE_RATE = 0.5;         // 効率50%
 export const OFFLINE_CAP_HOURS = 12;     // 上限12時間
-export const ASSUMED_STAGE_SECONDS = 150; // 1ステージの想定所要時間（敵カーブ1.09での実測の中央値あたり）
+export const ASSUMED_STAGE_SECONDS = 300; // 1ステージの想定所要時間（実測の中央値あたり）
 
 // --- アレキサンドライトの供給（A / B / C） ---
 //
@@ -183,7 +183,7 @@ export function claimDailyLogin(state) {
 
 // --- 限界突破 ---
 //
-// 費用は固定額（1,000,000ギル）だったが、ギルの伸びを敵と同じ ×1.09/ステージに
+// 費用は固定額（1,000,000ギル）だったが、ギルの伸びを敵と同じカーブまで
 // 落とした時点で「一生払えない額」になってしまった。
 // いまは到達ステージの稼ぎを基準にした相対額にしてある。
 //

@@ -42,9 +42,13 @@ export function calcStats(jobId, level, limitBreaks = 0) {
   return s;
 }
 
+// Lv75までの総量は約83万EXP。
+// 係数は40だったが、獲得EXPを指数からべき乗に落とした時点で桁が合わなくなり、
+// Lv75に一生届かなくなった（ステージ33でLv17）。
+// 「ステージ85前後でLv75」に合わせて 9 に下げてある。
 export function expToNext(level) {
   if (level >= LEVEL_CAP) return Infinity;
-  return Math.floor(40 * Math.pow(level, 1.9));
+  return Math.floor(9 * Math.pow(level, 1.9));
 }
 
 // --- 装備込みの合計ステータス ---
@@ -52,11 +56,12 @@ export function expToNext(level) {
 // 装備は「いま実際に着けている4本」の補正を加算する（js/core/inventory.js）。
 // 到達ステージから自動で装備を決めていた暫定仕様は廃止した。
 //
-// プレイヤー側で指数的に伸びる軸は次の2つになった。
-//   1. 装備のレア度×レベル（N Lv1 の 1.0 倍 → UR Lv50 の約17.5倍）… ゲーム全体で一度きり
-//   2. 実績「大陸踏破」の乗算 ×17.5 … 50ステージごとに掛かる
-// つまり長期的に持続する伸びは 17.5^(1/50) ≒ 1.059/ステージ。
-// 敵のカーブはこれを超えられない（超えると必ずどこかで詰む）。docs/balance.md 参照。
+// プレイヤー側の強化は、どれも上限がある。
+//   1. ジョブレベル … Lv75で打ち止め
+//   2. 装備のレア度×レベル … N Lv1 → UR Lv50 で約17.5倍が上限
+//   3. 実績・遺物 … すべて加算%。段階数が有限なので合計にも上限がある
+// そのため敵側も指数ではなくべき乗にしてある（docs/balance.md §4）。
+// 上限のある強化を指数の相手にすると、いつか必ず詰む。
 
 const STAT_KEYS = ['hp', 'mp', 'str', 'dex', 'vit', 'agi', 'int', 'mnd', 'chr'];
 
